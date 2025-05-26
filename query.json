@@ -1,0 +1,28 @@
+{
+  "creator": "arzaan789",
+  "notificationAddresses": [
+    "arzaaan789@gmail.com"
+  ],
+  "sendNotification": true,
+  "format": "SIMPLE_CSV",
+  "predicate": {
+    "type": "and",
+    "predicates": [
+      {
+        "type": "equals",
+        "key": "OCCURRENCE_STATUS",
+        "value": "PRESENT"
+      },
+      {
+        "type": "in",
+        "key": "COUNTRY",
+        "values": ["GB"]
+      },
+      {
+        "type": "equals",
+        "key": "SCIENTIFIC_NAME",
+        "value": "Felis catus Linnaeus, 1758"
+      }
+    ]
+  }
+}
