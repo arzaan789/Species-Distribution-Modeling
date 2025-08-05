@@ -19,9 +19,14 @@
         "values": ["GB"]
       },
       {
-        "type": "equals",
+        "type": "in",
         "key": "SCIENTIFIC_NAME",
-        "value": "Felis catus Linnaeus, 1758"
+        "values": ["Pipistrellus pipistrellus (Schreber, 1774)", "Pipistrellus nathusii (Keyserling & Blasius, 1839)", "Pipistrellus pipistrellus pipistrellus", "Vesperugo pipistrellus (Schreber, 1774)"]
+      },
+      {
+        "type": "greaterThanOrEquals",
+        "key": "YEAR",
+        "value": "2022"
       }
     ]
   }
