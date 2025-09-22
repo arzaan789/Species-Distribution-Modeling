@@ -17,7 +17,7 @@ The project seems to follow a standard data science workflow for species distrib
 
 The repository is organized primarily by species, with a collection of scripts and notebooks that form the modeling pipeline.
 
-- Dissertation.pdf: the final dissertation report.
+- Dissertation.pdf: the final dissertation report. A presentation of this also exists.
 
 -   `*.ipynb`: Jupyter Notebooks for various stages of the project, from initial data exploration (`TGB_*.ipynb`) to preprocessing, modeling (`deep_maxent.ipynb`), and inference.
 -   `[species_name]_*.csv`: A variety of CSV files per species, including:
