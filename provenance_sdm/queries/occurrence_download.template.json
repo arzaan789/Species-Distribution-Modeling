@@ -1,0 +1,44 @@
+{
+  "format": "SIMPLE_CSV",
+  "predicate": {
+    "predicates": [
+      {
+        "key": "COUNTRY",
+        "type": "equals",
+        "value": "GB"
+      },
+      {
+        "key": "OCCURRENCE_STATUS",
+        "type": "equals",
+        "value": "PRESENT"
+      },
+      {
+        "key": "HAS_COORDINATE",
+        "type": "equals",
+        "value": "true"
+      },
+      {
+        "key": "HAS_GEOSPATIAL_ISSUE",
+        "type": "equals",
+        "value": "false"
+      },
+      {
+        "key": "YEAR",
+        "type": "greaterThanOrEquals",
+        "value": "2022"
+      },
+      {
+        "key": "YEAR",
+        "type": "lessThanOrEquals",
+        "value": "2025"
+      },
+      {
+        "key": "TAXON_KEY",
+        "type": "in",
+        "values": []
+      }
+    ],
+    "type": "and"
+  },
+  "sendNotification": true
+}

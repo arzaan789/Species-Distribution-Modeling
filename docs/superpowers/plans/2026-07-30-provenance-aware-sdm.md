@@ -776,12 +776,14 @@ git commit -m "feat: summarize provenance background effects"
 @responses.activate
 def test_resolve_taxon_requires_accepted_species(client):
     responses.get(
-        "https://api.gbif.org/v1/species/match",
-        json={"usageKey": 5218704, "status": "ACCEPTED", "rank": "SPECIES",
-              "scientificName": "Lepus europaeus Pallas, 1778"},
+        "https://api.gbif.org/v2/species/match",
+        json={"usage": {"key": "7952072", "status": "ACCEPTED",
+                        "rank": "SPECIES",
+                        "name": "Lepus europaeus Pallas, 1778"},
+              "diagnostics": {"confidence": 99}},
     )
     taxon = client.resolve_taxon("Lepus europaeus")
-    assert taxon.taxon_key == 5218704
+    assert taxon.taxon_key == 7952072
 
 def test_sanitized_manifest_contains_no_credentials(acquisition_manifest):
     serialized = json.dumps(acquisition_manifest)
@@ -797,7 +799,8 @@ Expected: FAIL because the client does not exist.
 
 - [ ] **Step 3: Implement species and metadata GET operations**
 
-Use a `requests.Session` with timeout `(10, 60)`, package user-agent, and
+Use GBIF's current `/v2/species/match` response contract. Use a
+`requests.Session` with timeout `(10, 60)`, package user-agent, and
 bounded exponential retries for 429/5xx responses. Require accepted
 species-rank matches; write requested/accepted names and taxon keys to the
 sanitized manifest. Implement Registry API retrieval by dataset/publisher key.

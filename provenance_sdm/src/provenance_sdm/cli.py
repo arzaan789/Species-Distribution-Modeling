@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
 import pandas as pd
 
 from provenance_sdm.config import load_study_config
-from provenance_sdm.figures import write_simulation_figures
+from provenance_sdm.gbif import GBIFClient, TaxonMatch
 from provenance_sdm.landscape import Landscape
+from provenance_sdm.manifests import write_manifest
 from provenance_sdm.simulation_runner import audit_simulation, run_simulation
-from provenance_sdm.summaries import hierarchical_bootstrap, paired_effects
 
 
 def _load_landscape(path: Path, crs: str) -> Landscape:
@@ -44,6 +46,19 @@ def build_parser() -> argparse.ArgumentParser:
     figures = commands.add_parser("figures-simulation")
     figures.add_argument("--results", type=Path, required=True)
     figures.add_argument("--output", type=Path, required=True)
+    resolve = commands.add_parser("gbif-resolve")
+    resolve.add_argument("--config", type=Path, required=True)
+    resolve.add_argument("--output", type=Path, required=True)
+    request = commands.add_parser("gbif-request")
+    request.add_argument("--taxa", type=Path, required=True)
+    request.add_argument("--output", type=Path, required=True)
+    status = commands.add_parser("gbif-status")
+    status.add_argument("--download-key", required=True)
+    status.add_argument("--output", type=Path, required=True)
+    retrieve = commands.add_parser("gbif-retrieve")
+    retrieve.add_argument("--status", type=Path, required=True)
+    retrieve.add_argument("--archive", type=Path, required=True)
+    retrieve.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -58,9 +73,46 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = load_study_config(arguments.config)
         report = audit_simulation(arguments.results, config)
         return 0 if report["status"] == "passed" else 1
+    if arguments.command == "gbif-resolve":
+        config = load_study_config(arguments.config)
+        names = list(
+            dict.fromkeys(
+                name
+                for species in config.empirical_species
+                for name in (species.scientific_name, *species.target_group)
+            )
+        )
+        client = GBIFClient.from_environment()
+        payload = {
+            "taxa": [asdict(client.resolve_taxon(name)) for name in names],
+        }
+        write_manifest(payload, arguments.output)
+        return 0
+    if arguments.command == "gbif-request":
+        payload = json.loads(arguments.taxa.read_text(encoding="utf-8"))
+        taxa = [TaxonMatch(**item) for item in payload["taxa"]]
+        submitted = GBIFClient.from_environment().submit_download(taxa)
+        write_manifest(submitted, arguments.output)
+        return 0
+    if arguments.command == "gbif-status":
+        status_payload = GBIFClient.from_environment().download_status(
+            arguments.download_key
+        )
+        write_manifest(status_payload, arguments.output, allow_replace=True)
+        return 0
+    if arguments.command == "gbif-retrieve":
+        completed_status = json.loads(arguments.status.read_text(encoding="utf-8"))
+        archive_payload = GBIFClient.from_environment().retrieve_archive(
+            completed_status,
+            arguments.archive,
+        )
+        write_manifest(archive_payload, arguments.output)
+        return 0
     metrics = pd.read_parquet(arguments.results)
     arguments.output.mkdir(parents=True, exist_ok=True)
     if arguments.command == "summarize-simulation":
+        from provenance_sdm.summaries import hierarchical_bootstrap, paired_effects
+
         paired_effects(metrics).to_parquet(
             arguments.output / "paired_effects.parquet",
             index=False,
@@ -70,5 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             index=False,
         )
         return 0
+    from provenance_sdm.figures import write_simulation_figures
+
     write_simulation_figures(metrics, arguments.output)
     return 0
