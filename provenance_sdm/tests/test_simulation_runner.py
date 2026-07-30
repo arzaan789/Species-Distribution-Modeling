@@ -10,6 +10,7 @@ import pytest
 from provenance_sdm.landscape import landscape_from_arrays
 from provenance_sdm.simulation_runner import (
     RESULT_KEY_COLUMNS,
+    _atomic_parquet,
     audit_simulation,
     expected_simulation_keys,
     run_simulation,
@@ -30,6 +31,38 @@ def test_child_seed_depends_on_key_not_scheduling_order() -> None:
 
     assert seed_for(20260730, *key) == seed_for(20260730, *key)
     assert seed_for(20260730, *key) != seed_for(20260730, *reversed(key))
+
+
+def test_atomic_checkpoint_rewrites_after_transient_parquet_read_error(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "metrics.parquet"
+    rows = pd.DataFrame(
+        {
+            "community_seed": [1],
+            "alignment": ["low"],
+            "bias_level": ["moderate"],
+            "species_id": ["sp_000"],
+            "background_arm": ["uniform"],
+        }
+    )
+    original = pd.read_parquet
+    attempts = 0
+
+    def flaky_read(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("unexpected end of stream")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pd, "read_parquet", flaky_read)
+
+    _atomic_parquet(rows, path)
+
+    assert attempts == 2
+    assert len(original(path)) == 1
 
 
 @pytest.fixture

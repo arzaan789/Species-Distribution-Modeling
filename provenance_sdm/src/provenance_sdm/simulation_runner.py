@@ -69,12 +69,22 @@ def expected_simulation_keys(config: StudyConfig) -> pd.DataFrame:
 
 def _atomic_parquet(rows: pd.DataFrame, path: Path) -> None:
     temporary = path.with_name(f".{path.name}.tmp")
-    rows.to_parquet(temporary, index=False)
-    check = pd.read_parquet(temporary)
-    if len(check) != len(rows) or check.duplicated(list(RESULT_KEY_COLUMNS)).any():
+    last_error: OSError | None = None
+    for _ in range(3):
         temporary.unlink(missing_ok=True)
-        raise ValueError("incremental simulation artifact failed key validation")
-    os.replace(temporary, path)
+        rows.to_parquet(temporary, index=False)
+        try:
+            check = pd.read_parquet(temporary)
+        except OSError as exc:
+            last_error = exc
+            continue
+        if len(check) != len(rows) or check.duplicated(list(RESULT_KEY_COLUMNS)).any():
+            temporary.unlink(missing_ok=True)
+            raise ValueError("incremental simulation artifact failed key validation")
+        os.replace(temporary, path)
+        return
+    temporary.unlink(missing_ok=True)
+    raise OSError("incremental Parquet checkpoint failed three validations") from last_error
 
 
 def _landscape_hash(landscape: Landscape) -> str:
