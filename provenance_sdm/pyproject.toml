@@ -30,6 +30,9 @@ test = [
     "responses>=0.25",
 ]
 
+[project.scripts]
+provenance-sdm = "provenance_sdm.cli:main"
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
