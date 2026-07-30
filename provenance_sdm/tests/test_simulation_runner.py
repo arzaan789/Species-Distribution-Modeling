@@ -81,6 +81,7 @@ def test_runner_resumes_without_duplicate_rows(
     assert len(second) == 80
     assert not second.duplicated(list(RESULT_KEY_COLUMNS)).any()
     assert second.landscape_hash.nunique() == 1
+    assert second.source_distribution_distance.between(0, 1).all()
 
 
 def test_audit_reports_exact_missing_fit_keys(

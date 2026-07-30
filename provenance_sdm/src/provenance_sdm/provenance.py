@@ -16,6 +16,24 @@ class ProvenanceWeights:
     unsupported_mass: float
 
 
+def source_distribution_distance(
+    focal_sources: pd.Series,
+    candidate_sources: pd.Series,
+) -> float:
+    """Return total-variation distance between observed source proportions."""
+
+    if focal_sources.empty or candidate_sources.empty:
+        raise ValueError("source series must be non-empty")
+    if focal_sources.isna().any() or candidate_sources.isna().any():
+        raise ValueError("source labels must be complete")
+    focal_mass = focal_sources.value_counts(normalize=True, sort=False)
+    candidate_mass = candidate_sources.value_counts(normalize=True, sort=False)
+    sources = focal_mass.index.union(candidate_mass.index, sort=False)
+    focal_mass = focal_mass.reindex(sources, fill_value=0.0)
+    candidate_mass = candidate_mass.reindex(sources, fill_value=0.0)
+    return float(0.5 * np.abs(focal_mass - candidate_mass).sum())
+
+
 def pm_tgb_weights(
     focal_sources: pd.Series,
     candidate_sources: pd.Series,

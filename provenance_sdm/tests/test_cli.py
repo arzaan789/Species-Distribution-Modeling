@@ -13,3 +13,5 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     output = capsys.readouterr().out
     assert "simulate" in output
     assert "audit-simulation" in output
+    assert "summarize-simulation" in output
+    assert "figures-simulation" in output

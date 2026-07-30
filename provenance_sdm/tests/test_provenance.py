@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from provenance_sdm.provenance import pm_tgb_weights
+from provenance_sdm.provenance import pm_tgb_weights, source_distribution_distance
 
 
 def test_supported_sources_match_focal_source_mass() -> None:
@@ -76,3 +76,10 @@ def test_result_weights_are_finite_and_non_negative() -> None:
 
     assert np.isfinite(result.weights).all()
     assert result.weights.ge(0).all()
+
+
+def test_source_distribution_distance_is_total_variation() -> None:
+    focal = pd.Series(["A"] * 8 + ["B"] * 2)
+    candidates = pd.Series(["A", "B"])
+
+    assert source_distribution_distance(focal, candidates) == pytest.approx(0.3)

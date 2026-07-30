@@ -16,6 +16,7 @@ from provenance_sdm.landscape import Landscape
 from provenance_sdm.maxent import fit_maxent
 from provenance_sdm.metrics import generate_unbiased_evaluation, truth_metrics
 from provenance_sdm.observation import simulate_observations, simulate_programmes
+from provenance_sdm.provenance import source_distribution_distance
 from provenance_sdm.virtual_species import simulate_species_truth
 
 
@@ -193,6 +194,16 @@ def run_simulation(
                         presence = observed.records.query(
                             "species_id == @species.species_id"
                         ).merge(landscape.cells, on="cell_id", how="left")
+                        candidate_sources = observed.records.query(
+                            "taxonomic_group == @species.taxonomic_group "
+                            "and species_id != @species.species_id"
+                        ).programme_id
+                        source_distance = source_distribution_distance(
+                            observed.records.query(
+                                "species_id == @species.species_id"
+                            ).programme_id,
+                            candidate_sources,
+                        )
                         evaluation = generate_unbiased_evaluation(
                             species,
                             n_presence=500,
@@ -248,6 +259,7 @@ def run_simulation(
                                         if arm == "pm_tgb"
                                         else 0.0
                                     ),
+                                    "source_distribution_distance": source_distance,
                                     **metrics,
                                 }
                             )
