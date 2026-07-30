@@ -19,3 +19,7 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "gbif-request" in output
     assert "gbif-status" in output
     assert "gbif-retrieve" in output
+    assert "build-grid" in output
+    assert "clean-gbif" in output
+    assert "run-empirical" in output
+    assert "figures-empirical" in output

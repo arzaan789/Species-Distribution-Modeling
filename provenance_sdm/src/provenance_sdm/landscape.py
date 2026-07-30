@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from pyproj import CRS
+from pyproj import CRS, Transformer
 
 
 @dataclass(frozen=True)
@@ -104,4 +104,49 @@ def landscape_from_arrays(
         crs=crs,
         feature_means=means,
         feature_scales=scales,
+    )
+
+
+def landscape_from_geographic_frame(
+    frame: pd.DataFrame,
+    feature_names: Sequence[str],
+    crs: str,
+    cell_area: float,
+) -> Landscape:
+    """Build a projected landscape from WGS84 point-centred predictors."""
+
+    names = tuple(feature_names)
+    required = {"decimalLongitude", "decimalLatitude", *names}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"geographic predictor frame is missing: {sorted(missing)}")
+    if len(names) < 3 or len(names) != len(set(names)):
+        raise ValueError("feature_names must contain at least three unique fields")
+    if not np.isfinite(cell_area) or cell_area <= 0:
+        raise ValueError("cell_area must be finite and positive")
+    numeric = frame.loc[
+        :, ["decimalLongitude", "decimalLatitude", *names]
+    ].apply(pd.to_numeric, errors="coerce")
+    complete = np.isfinite(numeric.to_numpy(dtype=float)).all(axis=1)
+    valid = numeric.loc[complete].reset_index(drop=True)
+    if valid.empty:
+        raise ValueError("no complete geographic predictor rows remain")
+    transformer = Transformer.from_crs(
+        "EPSG:4326",
+        crs,
+        always_xy=True,
+    )
+    x, y = transformer.transform(
+        valid.decimalLongitude.to_numpy(dtype=float),
+        valid.decimalLatitude.to_numpy(dtype=float),
+    )
+    return landscape_from_arrays(
+        predictors={
+            name: valid[name].to_numpy(dtype=float)
+            for name in names
+        },
+        x=np.asarray(x, dtype=float),
+        y=np.asarray(y, dtype=float),
+        area=np.full(len(valid), cell_area, dtype=float),
+        crs=crs,
     )

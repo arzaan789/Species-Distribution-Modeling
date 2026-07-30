@@ -48,11 +48,30 @@ def projected_block_folds(
     if len(unique_blocks) < n_folds:
         raise ValueError("fewer projected blocks than requested folds")
     generator = np.random.default_rng(seed)
-    shuffled = generator.permutation(unique_blocks)
-    assignments = {
-        block_id: int(position % n_folds)
-        for position, block_id in enumerate(shuffled)
-    }
+    assignments: dict[str, int] = {}
+    fold_block_counts = np.zeros(n_folds, dtype=int)
+    if "label" in records:
+        labels = records.label.to_numpy()
+        positive_blocks = np.array(
+            [
+                block_id
+                for block_id in unique_blocks
+                if np.any(labels[block_ids == block_id] == 1)
+            ]
+        )
+        if len(positive_blocks) < n_folds:
+            raise ValueError("fewer positive projected blocks than requested folds")
+        for position, block_id in enumerate(generator.permutation(positive_blocks)):
+            fold_id = int(position % n_folds)
+            assignments[str(block_id)] = fold_id
+            fold_block_counts[fold_id] += 1
+        remaining = np.setdiff1d(unique_blocks, positive_blocks)
+    else:
+        remaining = unique_blocks
+    for block_id in generator.permutation(remaining):
+        fold_id = int(np.argmin(fold_block_counts))
+        assignments[str(block_id)] = fold_id
+        fold_block_counts[fold_id] += 1
     row_fold = np.array([assignments[block_id] for block_id in block_ids])
 
     folds = []

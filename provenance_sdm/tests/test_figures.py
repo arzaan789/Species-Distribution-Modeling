@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from provenance_sdm.figures import write_simulation_figures
+from provenance_sdm.figures import write_empirical_figures, write_simulation_figures
 
 
 def figure_metrics() -> pd.DataFrame:
@@ -51,3 +51,43 @@ def test_simulation_figures_are_nonempty_neutral_pngs(tmp_path: Path) -> None:
         for path in paths
         for word in ("improvement", "superior", "failure")
     )
+
+
+def test_empirical_figures_export_source_and_map_panels(tmp_path: Path) -> None:
+    metrics = pd.DataFrame(
+        [
+            {
+                "species": species,
+                "block_width_m": 50_000,
+                "fold_id": fold,
+                "provenance_level": "dataset",
+                "background_arm": arm,
+                "auc": 0.6 + 0.02 * fold + (0.03 if arm == "pm_tgb" else 0),
+                "source_distance": 0.2 + 0.1 * fold,
+                "unsupported_mass": 0.1 if arm == "pm_tgb" else 0.0,
+            }
+            for species in ("hare", "squirrel")
+            for fold in range(3)
+            for arm in ("uniform", "conventional_tgb", "pm_tgb")
+        ]
+    )
+    maps = pd.DataFrame(
+        [
+            {
+                "cell_id": cell_id,
+                "x": cell_id % 4,
+                "y": cell_id // 4,
+                "species": "hare",
+                "background_arm": arm,
+                "predicted_suitability": (cell_id + 1)
+                * (1.2 if arm == "pm_tgb" else 1.0),
+            }
+            for arm in ("uniform", "conventional_tgb", "pm_tgb")
+            for cell_id in range(16)
+        ]
+    )
+
+    paths = write_empirical_figures(metrics, maps, tmp_path)
+
+    assert len(paths) == 2
+    assert all(path.stat().st_size > 1_000 for path in paths)

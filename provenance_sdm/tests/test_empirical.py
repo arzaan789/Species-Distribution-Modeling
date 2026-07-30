@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+import zipfile
+from dataclasses import replace
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+from pyproj import Transformer
 
-from provenance_sdm.empirical import clean_occurrences
+from provenance_sdm.config import EmpiricalSpecies
+from provenance_sdm.empirical import (
+    EmpiricalInputs,
+    attach_nearest_grid_cells,
+    clean_occurrences,
+    read_gbif_archive,
+    run_empirical,
+)
+from provenance_sdm.landscape import landscape_from_arrays
 
 
 @pytest.fixture
@@ -85,3 +98,155 @@ def test_missing_required_schema_is_rejected(raw_occurrences) -> None:
             set(range(8)),
             {10, 20},
         )
+
+
+def test_gbif_simple_csv_archive_is_read_from_occurrence_member(
+    raw_occurrences: pd.DataFrame,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "gbif.zip"
+    payload = raw_occurrences.drop(columns="cell_id").to_csv(
+        sep="\t",
+        index=False,
+    )
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("README.txt", "GBIF download")
+        archive.writestr("occurrence.txt", payload)
+
+    restored = read_gbif_archive(archive_path)
+
+    assert len(restored) == len(raw_occurrences)
+    assert {"taxonKey", "datasetKey", "publishingOrgKey"} <= set(restored)
+
+
+def test_occurrence_coordinates_attach_to_nearest_projected_grid_cell() -> None:
+    longitude = np.array((-2.0, -1.9, -2.0, -1.9))
+    latitude = np.array((52.0, 52.0, 52.1, 52.1))
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:27700", always_xy=True)
+    x, y = transformer.transform(longitude, latitude)
+    landscape = landscape_from_arrays(
+        {
+            "env_1": np.arange(4, dtype=float),
+            "env_2": np.array((0.0, 2.0, 1.0, 3.0)),
+            "env_3": np.array((3.0, 1.0, 0.0, 2.0)),
+        },
+        np.asarray(x),
+        np.asarray(y),
+        np.ones(4),
+        "EPSG:27700",
+    )
+    records = pd.DataFrame(
+        {
+            "decimalLongitude": longitude[[0, 3]],
+            "decimalLatitude": latitude[[0, 3]],
+        }
+    )
+
+    attached = attach_nearest_grid_cells(records, landscape, max_distance_m=10)
+
+    assert attached.cell_id.tolist() == [0, 3]
+    assert attached.cell_distance_m.max() < 0.01
+    assert np.isfinite(attached.loc[:, ["x", "y"]].to_numpy()).all()
+
+
+@pytest.fixture
+def tiny_empirical_inputs(study_config, tmp_path) -> EmpiricalInputs:
+    side = np.arange(24, dtype=float) * 25_000
+    x, y = np.meshgrid(side, side)
+    landscape = landscape_from_arrays(
+        {
+            "env_1": x.ravel(),
+            "env_2": y.ravel(),
+            "env_3": np.sin(x.ravel() / 100_000)
+            + np.cos(y.ravel() / 100_000),
+        },
+        x=x.ravel(),
+        y=y.ravel(),
+        area=np.ones(x.size),
+        crs="EPSG:27700",
+    )
+    focal_cells = [
+        y_index * 24 + x_index
+        for y_index in range(0, 24, 4)
+        for x_index in range(0, 24, 4)
+    ]
+    rows = []
+    for record_id, cell_id in enumerate(focal_cells * 3):
+        rows.append(
+            {
+                "record_id": record_id,
+                "taxonKey": 10,
+                "cell_id": cell_id,
+                "datasetKey": "dataset-a" if record_id % 4 else "dataset-b",
+                "publishingOrgKey": "publisher-a"
+                if record_id % 3
+                else "publisher-b",
+            }
+        )
+    next_id = len(rows)
+    for offset, cell_id in enumerate(range(0, len(landscape.cells), 2)):
+        rows.append(
+            {
+                "record_id": next_id + offset,
+                "taxonKey": 20,
+                "cell_id": cell_id,
+                "datasetKey": ("dataset-a", "dataset-b", "dataset-c")[offset % 3],
+                "publishingOrgKey": ("publisher-a", "publisher-b")[offset % 2],
+            }
+        )
+    simulation = replace(
+        study_config.simulation,
+        background_cells=10,
+        minimum_background_cells=5,
+    )
+    config = replace(
+        study_config,
+        simulation=simulation,
+        empirical_species=(
+            EmpiricalSpecies(
+                key="focal",
+                scientific_name="Focal species",
+                target_group=("Target species",),
+            ),
+        ),
+        output_dir=tmp_path,
+    )
+    return EmpiricalInputs(
+        config=config,
+        records=pd.DataFrame(rows),
+        landscape=landscape,
+        taxon_keys={"Focal species": 10, "Target species": 20},
+        block_widths=(50_000,),
+        n_folds=5,
+    )
+
+
+def test_empirical_arms_share_evaluation_rows_and_background_budget(
+    tiny_empirical_inputs: EmpiricalInputs,
+    tmp_path: Path,
+) -> None:
+    path = run_empirical(tiny_empirical_inputs, tmp_path)
+    rows = pd.read_parquet(path)
+
+    assert len(rows) == 30
+    hashes = rows.groupby(["species", "block_width_m", "fold_id"]).evaluation_hash.nunique()
+    assert hashes.eq(1).all()
+    budgets = rows.groupby(
+        ["species", "block_width_m", "fold_id", "provenance_level"]
+    ).background_cells.nunique()
+    assert budgets.eq(1).all()
+    assert set(rows.background_arm) == {"uniform", "conventional_tgb", "pm_tgb"}
+    assert set(rows.provenance_level) == {"dataset", "publisher"}
+
+
+def test_empirical_comparison_exports_common_map_metrics(
+    tiny_empirical_inputs: EmpiricalInputs,
+    tmp_path: Path,
+) -> None:
+    rows = pd.read_parquet(run_empirical(tiny_empirical_inputs, tmp_path))
+
+    assert rows.map_spearman.between(-1, 1).all()
+    assert rows.upper_area_overlap.between(0, 1).all()
+    assert np.isfinite(rows.upper_area_shift).all()
+    assert np.isfinite(rows.centroid_shift_m).all()
+    assert (tmp_path / "empirical_maps.parquet").is_file()

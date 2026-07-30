@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
-from provenance_sdm.landscape import landscape_from_arrays
+from provenance_sdm.landscape import (
+    landscape_from_arrays,
+    landscape_from_geographic_frame,
+)
 
 
 def valid_arrays() -> dict[str, object]:
@@ -39,6 +43,31 @@ def test_landscape_standardizes_only_predictors() -> None:
     assert landscape.feature_means == pytest.approx(
         {"temperature": 2.5, "rainfall": 5.0, "woodland": 0.5}
     )
+
+
+def test_geographic_predictor_frame_is_filtered_projected_and_standardized() -> None:
+    frame = pd.DataFrame(
+        {
+            "decimalLongitude": [-2.0, -1.9, -1.8, -1.7, -1.6],
+            "decimalLatitude": [52.0, 52.1, 52.2, 52.3, 52.4],
+            "temperature": [1.0, 2.0, np.nan, 4.0, 5.0],
+            "rainfall": [8.0, 6.0, 4.0, 2.0, 1.0],
+            "vegetation": [0.0, 1.0, 0.0, 1.0, 2.0],
+        }
+    )
+
+    landscape = landscape_from_geographic_frame(
+        frame,
+        ("temperature", "rainfall", "vegetation"),
+        "EPSG:27700",
+        cell_area=1_000_000,
+    )
+
+    assert len(landscape.cells) == 4
+    assert landscape.crs == "EPSG:27700"
+    assert landscape.cells.area_weight.eq(1_000_000).all()
+    assert landscape.cells.x.between(300_000, 500_000).all()
+    assert landscape.cells.temperature.mean() == pytest.approx(0)
 
 
 @pytest.mark.parametrize(

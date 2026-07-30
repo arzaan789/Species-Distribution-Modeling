@@ -18,9 +18,6 @@ python -m pip install -e ".[test]"
 python -m pytest -q
 ```
 
-The complete data acquisition and analysis workflow will be documented as each
-audited command is implemented.
-
 ## Citable GBIF acquisition
 
 Taxa are resolved with the current GBIF Species Match API. Bulk occurrences
@@ -58,3 +55,46 @@ addresses. Generated manifests are also sanitized. Official references:
 [API downloads](https://techdocs.gbif.org/en/data-use/api-downloads),
 [Species API](https://techdocs.gbif.org/en/openapi/v1/species), and
 [Registry API](https://techdocs.gbif.org/en/openapi/v1/registry-principal-methods).
+
+## Empirical workflow
+
+Build the shared projected analysis grid from the dissertation's existing
+remote-sensing table:
+
+```bash
+provenance-sdm build-grid \
+  --predictors ../inference_data_indices.csv \
+  --output outputs/gb_grid.parquet
+```
+
+The command uses the nine continuous remote-sensing predictors, removes rows
+with incomplete inputs, projects cell centres to EPSG:27700, assigns equal
+1-km-cell area weights, and writes a source hash and count audit beside the
+Parquet file.
+
+After the DOI download succeeds and the archive is retrieved, run:
+
+```bash
+provenance-sdm clean-gbif \
+  --config config/study.yaml \
+  --archive raw/0018113-260721160103020.zip \
+  --grid outputs/gb_grid.parquet \
+  --taxa outputs/taxa.json \
+  --output outputs
+provenance-sdm run-empirical \
+  --config config/study.yaml \
+  --records outputs/clean_occurrences.parquet \
+  --grid outputs/gb_grid.parquet \
+  --taxa outputs/taxa.json \
+  --output outputs
+provenance-sdm figures-empirical \
+  --results outputs/empirical_metrics.parquet \
+  --maps outputs/empirical_maps.parquet \
+  --output manuscript/figures
+```
+
+The primary empirical comparison uses 50-km projected spatial blocks.
+Twenty-five- and 100-km blocks and publisher-level provenance are exported as
+sensitivity analyses. Uniform, conventional target-group, and
+provenance-matched backgrounds share one feasible cell budget within every
+fold and are evaluated on identical held-out rows.

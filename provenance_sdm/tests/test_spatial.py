@@ -62,3 +62,21 @@ def test_geographic_or_nonfinite_coordinates_are_rejected(
 
     with pytest.raises(ValueError, match="finite"):
         projected_block_folds(invalid, 50_000, 5, seed=1)
+
+
+def test_sparse_positive_blocks_are_distributed_across_folds(
+    projected_occurrences,
+) -> None:
+    records = projected_occurrences.copy()
+    records["label"] = 0
+    positive_blocks = [(0, 0), (0, 2), (2, 0), (2, 2), (4, 4)]
+    for x_index, y_index in positive_blocks:
+        records.loc[
+            records.x.eq(x_index * 25_000)
+            & records.y.eq(y_index * 25_000),
+            "label",
+        ] = 1
+
+    folds = projected_block_folds(records, 50_000, 5, seed=8)
+
+    assert all(records.loc[list(fold.test_row_indices), "label"].sum() >= 1 for fold in folds)

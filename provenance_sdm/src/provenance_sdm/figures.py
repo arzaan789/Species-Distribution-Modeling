@@ -114,3 +114,86 @@ def write_simulation_figures(
         _effect_figure(effects, destination / "paired_truth_contrasts.png"),
         _condition_figure(effects, destination / "contrast_conditions.png"),
     )
+
+
+def _source_overlap_figure(metrics: pd.DataFrame, path: Path) -> Path:
+    primary = metrics[
+        metrics.provenance_level.eq("dataset")
+        & metrics.block_width_m.eq(50_000)
+        & metrics.background_arm.isin(("conventional_tgb", "pm_tgb"))
+    ]
+    paired = primary.pivot(
+        index=["species", "fold_id", "source_distance"],
+        columns="background_arm",
+        values="auc",
+    ).dropna()
+    paired["auc_contrast"] = paired.pm_tgb - paired.conventional_tgb
+    paired = paired.reset_index()
+    figure, axis = plt.subplots(figsize=(7, 4))
+    for species, rows in paired.groupby("species"):
+        axis.scatter(
+            rows.source_distance,
+            rows.auc_contrast,
+            label=species.replace("_", " "),
+            alpha=0.75,
+        )
+    axis.axhline(0, color="#718096", linewidth=0.9)
+    axis.set_xlabel("Focal–target source-distribution distance")
+    axis.set_ylabel("PM-TGB − conventional TGB AUC")
+    axis.set_title("Held-out discrimination contrast and source mismatch")
+    axis.legend(title="Species", fontsize="small")
+    return _save(figure, path)
+
+
+def _map_disagreement_figure(maps: pd.DataFrame, path: Path) -> Path:
+    species = str(maps.species.iloc[0])
+    selected = maps[
+        maps.species.eq(species)
+        & maps.background_arm.isin(("conventional_tgb", "pm_tgb"))
+    ]
+    wide = selected.pivot(
+        index=["cell_id", "x", "y"],
+        columns="background_arm",
+        values="predicted_suitability",
+    ).dropna()
+    difference = wide.pm_tgb - wide.conventional_tgb
+    scale = float(np.abs(difference).max())
+    if scale == 0:
+        scale = 1.0
+    figure, axis = plt.subplots(figsize=(6, 5))
+    points = axis.scatter(
+        wide.index.get_level_values("x"),
+        wide.index.get_level_values("y"),
+        c=difference,
+        cmap="coolwarm",
+        vmin=-scale,
+        vmax=scale,
+        s=12,
+    )
+    figure.colorbar(points, ax=axis, label="PM-TGB − conventional suitability")
+    axis.set_aspect("equal")
+    axis.set_xlabel("Projected x")
+    axis.set_ylabel("Projected y")
+    axis.set_title(f"Background-arm map contrast: {species.replace('_', ' ')}")
+    return _save(figure, path)
+
+
+def write_empirical_figures(
+    metrics: pd.DataFrame,
+    maps: pd.DataFrame,
+    output_dir: Path,
+) -> tuple[Path, ...]:
+    """Write neutral primary empirical source and map comparison panels."""
+
+    destination = Path(output_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    return (
+        _source_overlap_figure(
+            metrics,
+            destination / "empirical_source_contrasts.png",
+        ),
+        _map_disagreement_figure(
+            maps,
+            destination / "empirical_map_contrast.png",
+        ),
+    )
