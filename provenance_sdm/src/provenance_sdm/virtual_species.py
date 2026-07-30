@@ -20,6 +20,7 @@ class SpeciesTruth:
     coefficients: np.ndarray
     niche_breadth: float
     suitability: np.ndarray
+    landscape: Landscape
 
 
 def _environmental_design(landscape: Landscape) -> np.ndarray:
@@ -68,6 +69,7 @@ def simulate_species_truth(
                 coefficients=coefficients,
                 niche_breadth=niche_breadth,
                 suitability=suitability,
+                landscape=landscape,
             )
         )
 
