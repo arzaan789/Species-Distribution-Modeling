@@ -134,3 +134,56 @@ multispecies TGB mode uses the pooled set of recorded sites. It cannot express
 species-specific PM-TGB supports without changing the official loss.
 Accordingly, DeepMaxent may be reported only as uniform/conventional pooled
 TGB context, never as an implementation of PM-TGB.
+
+## Clean regeneration and submission checks
+
+From a fresh checkout on the paper branch:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[test,deepmaxent]"
+python -m pytest -q
+set -a
+source .env
+set +a
+```
+
+Run the GBIF resolve/request/status/retrieve commands above until the DOI
+archive is complete, then build the grid, clean the archive, and run the
+empirical workflow. Run the simulation and its completeness audit:
+
+```bash
+provenance-sdm simulate \
+  --config config/study.yaml \
+  --landscape outputs/gb_grid.parquet
+provenance-sdm audit-simulation \
+  --config config/study.yaml \
+  --results outputs/simulation_metrics.parquet
+provenance-sdm summarize-simulation \
+  --results outputs/simulation_metrics.parquet \
+  --output outputs
+provenance-sdm figures-simulation \
+  --results outputs/simulation_metrics.parquet \
+  --output manuscript/figures
+```
+
+Run the optional DeepMaxent pilot and gate without delaying the core
+simulation. Finally export the four manuscript tables and audit the complete
+submission bundle:
+
+```bash
+provenance-sdm export-manuscript \
+  --config config/study.yaml \
+  --output manuscript
+provenance-sdm audit-all \
+  --config config/study.yaml \
+  --output outputs/reproducibility_audit.json
+```
+
+`audit-all` fails unless the 14,400 primary fits are complete and finite,
+background budgets are paired, all four empirical species have five folds at
+25/50/100 km and both provenance levels, the GBIF DOI/hash and grid hash are
+present, all cleaning stages are retained, four valid submission PNGs exist,
+and no excluded taxon occurs in retained submission data. DeepMaxent status is
+recorded but never determines core success.

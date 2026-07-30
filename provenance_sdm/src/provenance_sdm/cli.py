@@ -138,6 +138,15 @@ def build_parser() -> argparse.ArgumentParser:
     deepmaxent_gate.add_argument("--output", type=Path, required=True)
     run_deepmaxent = commands.add_parser("run-deepmaxent")
     run_deepmaxent.add_argument("--gate", type=Path, required=True)
+    export = commands.add_parser("export-manuscript")
+    export.add_argument("--config", type=Path, required=True)
+    export.add_argument("--root", type=Path, default=Path("."))
+    export.add_argument("--output", type=Path, required=True)
+    export.add_argument("--bootstrap-draws", type=int, default=2_000)
+    audit_all = commands.add_parser("audit-all")
+    audit_all.add_argument("--config", type=Path, required=True)
+    audit_all.add_argument("--root", type=Path, default=Path("."))
+    audit_all.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -294,6 +303,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError(
             "passed gate requires a separately configured full DeepMaxent run"
         )
+    if arguments.command == "export-manuscript":
+        from provenance_sdm.reproducibility import export_manuscript
+
+        export_manuscript(
+            arguments.root,
+            load_study_config(arguments.config),
+            arguments.output,
+            n_boot=arguments.bootstrap_draws,
+        )
+        return 0
+    if arguments.command == "audit-all":
+        from provenance_sdm.reproducibility import build_reproducibility_audit
+
+        report = build_reproducibility_audit(
+            arguments.root,
+            load_study_config(arguments.config),
+        )
+        write_manifest(report, arguments.output, allow_replace=True)
+        return 0 if report["core_status"] == "passed" else 1
     metrics = pd.read_parquet(arguments.results)
     arguments.output.mkdir(parents=True, exist_ok=True)
     if arguments.command == "summarize-simulation":

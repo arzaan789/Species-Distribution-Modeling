@@ -26,3 +26,5 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "deepmaxent-pilot" in output
     assert "deepmaxent-gate" in output
     assert "run-deepmaxent" in output
+    assert "export-manuscript" in output
+    assert "audit-all" in output
