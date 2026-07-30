@@ -1,0 +1,13 @@
+.venv/
+.env
+.env.*
+!.env.example
+raw/
+outputs/
+*.zip
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+credentials*
+secrets*

@@ -1,0 +1,54 @@
+simulation:
+  n_species: 200
+  n_communities: 3
+  n_taxonomic_groups: 10
+  n_programmes: 6
+  alignments:
+    - low
+    - partial
+    - high
+  bias_levels:
+    - moderate
+    - strong
+  min_records: 20
+  max_records: 2000
+  background_cells: 10000
+  seed: 20260730
+
+background_arms:
+  - uniform
+  - conventional_tgb
+  - pm_tgb
+  - oracle_effort
+
+empirical_years:
+  - 2022
+  - 2025
+empirical_country: GB
+
+empirical_species:
+  - key: brown_hare
+    scientific_name: Lepus europaeus
+    target_group:
+      - Lepus timidus
+      - Oryctolagus cuniculus
+  - key: hazel_dormouse
+    scientific_name: Muscardinus avellanarius
+    target_group:
+      - Apodemus flavicollis
+      - Apodemus sylvaticus
+      - Eliomys quercinus
+  - key: european_hedgehog
+    scientific_name: Erinaceus europaeus
+    target_group:
+      - Apodemus sylvaticus
+      - Sorex araneus
+      - Talpa europaea
+  - key: red_squirrel
+    scientific_name: Sciurus vulgaris
+    target_group:
+      - Glis glis
+      - Muscardinus avellanarius
+      - Tamias sibiricus
+
+output_dir: outputs
