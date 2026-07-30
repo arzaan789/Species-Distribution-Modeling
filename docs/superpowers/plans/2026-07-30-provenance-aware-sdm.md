@@ -145,6 +145,7 @@ class SimulationConfig:
     min_records: int
     max_records: int
     background_cells: int
+    minimum_background_cells: int
     seed: int
 
 @dataclass(frozen=True)
@@ -171,9 +172,9 @@ case-insensitively.
 - [ ] **Step 5: Write `study.yaml` with the approved exact design**
 
 Set 200 species, 3 communities, 10 taxonomic groups, 6 programmes, alignments
-`low/partial/high`, bias levels `moderate/strong`, 20–2,000 records, 10,000
-background cells, seed `20260730`, all four arms, and the approved four focal
-species/target groups.
+`low/partial/high`, bias levels `moderate/strong`, 20–2,000 records, a
+500-cell requested background cap, a 50-cell minimum common budget, seed
+`20260730`, all four arms, and the approved four focal species/target groups.
 
 - [ ] **Step 6: Run the configuration tests**
 
@@ -470,8 +471,10 @@ Use `numpy.random.Generator.choice(..., replace=False, p=weights)` over unique
 valid cells. Conventional TGB pools other species in the focal taxonomic group.
 PM-TGB calls `pm_tgb_weights` using focal programme labels and candidate
 programme labels. Oracle effort samples from the known focal mixed effort.
-Uniform samples by area weight. Raise a diagnostic when fewer unique supported
-cells exist than the configured budget.
+Uniform samples by area weight. Before sampling, set the common paired budget
+to the minimum of the 500-cell cap, conventional unique support, and positive
+PM-TGB unique support. Apply that exact budget to all four arms, record it, and
+raise a diagnostic only when common support is below 50 cells.
 
 - [ ] **Step 6: Run focused and complete tests**
 

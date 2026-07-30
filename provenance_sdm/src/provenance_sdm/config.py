@@ -31,6 +31,7 @@ class SimulationConfig:
     min_records: int
     max_records: int
     background_cells: int
+    minimum_background_cells: int
     seed: int
 
 
@@ -102,6 +103,7 @@ def _load_simulation(payload: object) -> SimulationConfig:
         "min_records",
         "max_records",
         "background_cells",
+        "minimum_background_cells",
     )
     counts = {
         field: _require_positive_int(values.get(field), field)
@@ -109,6 +111,10 @@ def _load_simulation(payload: object) -> SimulationConfig:
     }
     if counts["max_records"] < counts["min_records"]:
         raise ValueError("max_records must be at least min_records")
+    if counts["minimum_background_cells"] > counts["background_cells"]:
+        raise ValueError(
+            "minimum_background_cells must not exceed background_cells"
+        )
     seed = values.get("seed")
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise ValueError("seed must be an integer")

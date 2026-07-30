@@ -12,7 +12,8 @@ simulation:
     - strong
   min_records: 20
   max_records: 2000
-  background_cells: 10000
+  background_cells: 500
+  minimum_background_cells: 50
   seed: 20260730
 
 background_arms:

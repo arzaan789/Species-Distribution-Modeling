@@ -36,7 +36,8 @@ def test_primary_simulation_design_is_frozen() -> None:
         20,
         2_000,
     )
-    assert config.simulation.background_cells == 10_000
+    assert config.simulation.background_cells == 500
+    assert config.simulation.minimum_background_cells == 50
     assert config.background_arms == (
         "uniform",
         "conventional_tgb",
@@ -89,6 +90,7 @@ def test_empirical_scope_has_exact_non_bat_species_and_target_groups() -> None:
         ("min_records", 0),
         ("max_records", -1),
         ("background_cells", 0),
+        ("minimum_background_cells", 0),
     ],
 )
 def test_non_positive_simulation_counts_are_rejected(

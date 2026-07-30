@@ -86,7 +86,27 @@ def test_taxonomic_background_uses_other_species_candidate_cells(
     assert set(arms["pm_tgb"].cell_id) <= candidate_cells
 
 
-def test_insufficient_unique_target_group_cells_raise_diagnostic(
+def test_budget_adapts_to_common_target_group_support(
+    observed_community,
+) -> None:
+    candidate_count = observed_community.records.query(
+        "taxonomic_group == 0 and species_id != 'sp_000'"
+    ).cell_id.nunique()
+
+    arms = make_backgrounds(
+        observed_community,
+        focal_species="sp_000",
+        n_cells=candidate_count + 1,
+        minimum_cells=5,
+        seed=5,
+    )
+
+    budgets = {len(frame) for frame in arms.values()}
+    assert len(budgets) == 1
+    assert budgets.pop() <= candidate_count
+
+
+def test_common_support_below_minimum_raises_diagnostic(
     observed_community,
 ) -> None:
     candidate_count = observed_community.records.query(
@@ -98,5 +118,6 @@ def test_insufficient_unique_target_group_cells_raise_diagnostic(
             observed_community,
             focal_species="sp_000",
             n_cells=candidate_count + 1,
+            minimum_cells=candidate_count + 1,
             seed=5,
         )

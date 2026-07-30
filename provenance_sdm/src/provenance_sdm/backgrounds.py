@@ -51,11 +51,19 @@ def make_backgrounds(
     focal_species: str,
     n_cells: int,
     seed: int,
+    minimum_cells: int = 1,
 ) -> dict[str, pd.DataFrame]:
-    """Construct four unique-cell background samples with equal budgets."""
+    """Construct four unique-cell samples using one common supported budget."""
 
     if isinstance(n_cells, bool) or not isinstance(n_cells, int) or n_cells <= 0:
         raise ValueError("n_cells must be a positive integer")
+    if (
+        isinstance(minimum_cells, bool)
+        or not isinstance(minimum_cells, int)
+        or minimum_cells <= 0
+        or minimum_cells > n_cells
+    ):
+        raise ValueError("minimum_cells must be positive and no greater than n_cells")
     truth_by_id = {species.species_id: species for species in observed.truth}
     if focal_species not in truth_by_id:
         raise ValueError(f"unknown focal species: {focal_species!r}")
@@ -68,12 +76,6 @@ def make_backgrounds(
         "taxonomic_group == @focal_truth.taxonomic_group "
         "and species_id != @focal_species"
     )
-    if candidates.cell_id.nunique() < n_cells:
-        raise ValueError(
-            f"fewer than {n_cells} unique target-group cells are available "
-            f"({candidates.cell_id.nunique()} found)"
-        )
-
     generator = np.random.default_rng(seed)
     landscape = observed.landscape.cells
     uniform_weights = pd.Series(
@@ -95,29 +97,41 @@ def make_backgrounds(
         observed.species_effort[focal_species],
         index=landscape.cell_id,
     )
+    available_cells = min(
+        int(uniform_weights.gt(0).sum()),
+        int(conventional_weights.groupby(level=0).sum().gt(0).sum()),
+        int(pm_cell_weights.gt(0).sum()),
+        int(oracle_weights.gt(0).sum()),
+    )
+    common_budget = min(n_cells, available_cells)
+    if common_budget < minimum_cells:
+        raise ValueError(
+            "insufficient unique target-group cells for the common paired "
+            f"budget: {common_budget} available, {minimum_cells} required"
+        )
 
     selected = {
         "uniform": _sample_cells(
             uniform_weights,
-            n_cells,
+            common_budget,
             generator,
             "landscape cells",
         ),
         "conventional_tgb": _sample_cells(
             conventional_weights,
-            n_cells,
+            common_budget,
             generator,
             "target-group cells",
         ),
         "pm_tgb": _sample_cells(
             pm_cell_weights,
-            n_cells,
+            common_budget,
             generator,
             "provenance-supported target-group cells",
         ),
         "oracle_effort": _sample_cells(
             oracle_weights,
-            n_cells,
+            common_budget,
             generator,
             "oracle-effort cells",
         ),

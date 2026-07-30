@@ -114,8 +114,12 @@ publisher-level analysis will always be reported as supplementary evidence and
 will be discussed explicitly if it changes the primary interpretation.
 
 Background points will be sampled as unique landscape cells after source
-weights are calculated. All methods will use the same background-cell budget
-per focal species.
+weights are calculated. The requested budget is capped at 500 cells. For each
+focal species-scenario pair, the common budget is the smaller of that cap, the
+number of unique conventional-TGB cells, and the number of positive-weight
+PM-TGB cells. All methods use exactly that pre-sampling common budget. Pairs
+with fewer than 50 supported cells fail explicitly, and the selected budget is
+reported with every fit.
 
 ## Simulation design
 
