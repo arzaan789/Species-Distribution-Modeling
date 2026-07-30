@@ -81,6 +81,7 @@ def test_observed_cells_follow_suitability_times_species_effort(
         seed=9,
     )
 
+    assert observed.species_effort["sp_000"].dtype == np.float32
     expected = truths[0].suitability * observed.species_effort["sp_000"]
     expected /= expected.sum()
     actual = (

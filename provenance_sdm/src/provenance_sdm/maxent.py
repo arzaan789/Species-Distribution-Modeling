@@ -41,9 +41,21 @@ class MaxentModel:
     def predict_suitability(
         self,
         landscape: Landscape | pd.DataFrame,
+        batch_size: int = 50_000,
     ) -> np.ndarray:
         frame = landscape.cells if isinstance(landscape, Landscape) else landscape
-        log_intensity = self.predict_log_intensity(frame)
+        if (
+            isinstance(batch_size, bool)
+            or not isinstance(batch_size, int)
+            or batch_size <= 0
+        ):
+            raise ValueError("batch_size must be a positive integer")
+        log_intensity = np.empty(len(frame), dtype=float)
+        for start in range(0, len(frame), batch_size):
+            stop = min(start + batch_size, len(frame))
+            log_intensity[start:stop] = self.predict_log_intensity(
+                frame.iloc[start:stop]
+            )
         log_intensity -= float(log_intensity.max())
         intensity = np.exp(np.clip(log_intensity, -50.0, 0.0))
         if "area_weight" in frame:

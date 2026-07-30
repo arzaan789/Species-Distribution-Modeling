@@ -64,6 +64,17 @@ def test_fit_is_deterministic_under_fixed_seed(gradient_data) -> None:
     np.testing.assert_allclose(first.estimator.intercept_, second.estimator.intercept_)
 
 
+def test_batched_landscape_prediction_matches_single_batch(gradient_data) -> None:
+    landscape, presence, background, _ = gradient_data
+    model = fit_maxent(presence, background, ("env_1",), 1.0, seed=8)
+
+    batched = model.predict_suitability(landscape, batch_size=17)
+    single = model.predict_suitability(landscape, batch_size=len(landscape.cells))
+
+    np.testing.assert_allclose(batched, single, rtol=1e-12, atol=1e-15)
+    assert batched.sum() == pytest.approx(1.0)
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

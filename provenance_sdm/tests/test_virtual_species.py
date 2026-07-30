@@ -38,6 +38,7 @@ def test_species_truth_is_deterministic(toy_landscape) -> None:
 def test_species_truth_is_normalized_positive_and_non_constant(toy_landscape) -> None:
     truths = simulate_species_truth(toy_landscape, n_species=20, seed=7)
 
+    assert all(truth.suitability.dtype == np.float32 for truth in truths)
     assert all(np.isclose(truth.suitability.sum(), 1.0) for truth in truths)
     assert all(np.all(truth.suitability > 0) for truth in truths)
     assert all(np.ptp(truth.suitability) > 0 for truth in truths)

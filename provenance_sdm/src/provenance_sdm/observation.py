@@ -175,7 +175,10 @@ def simulate_observations(
         mixture = mixtures[species_index]
         mixed_effort = mixture @ effort_matrix
         mixed_effort /= mixed_effort.sum()
-        species_effort[species.species_id] = mixed_effort
+        species_effort[species.species_id] = np.asarray(
+            mixed_effort,
+            dtype=np.float32,
+        )
 
         joint_probability = (
             mixture[:, None]

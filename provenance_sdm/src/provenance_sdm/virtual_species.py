@@ -61,7 +61,10 @@ def simulate_species_truth(
         log_intensity = environmental @ coefficients / niche_breadth
         log_intensity -= float(log_intensity.max())
         intensity = np.exp(np.clip(log_intensity, -50.0, 0.0)) * area_weight
-        suitability = intensity / intensity.sum()
+        suitability = np.asarray(
+            intensity / intensity.sum(),
+            dtype=np.float32,
+        )
         truths.append(
             SpeciesTruth(
                 species_id=f"sp_{species_index:03d}",
