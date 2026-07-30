@@ -123,6 +123,21 @@ def build_parser() -> argparse.ArgumentParser:
     empirical_figures.add_argument("--results", type=Path, required=True)
     empirical_figures.add_argument("--maps", type=Path, required=True)
     empirical_figures.add_argument("--output", type=Path, required=True)
+    deepmaxent_pilot = commands.add_parser("deepmaxent-pilot")
+    deepmaxent_pilot.add_argument("--official-checkout", type=Path, required=True)
+    deepmaxent_pilot.add_argument("--output", type=Path, required=True)
+    deepmaxent_pilot.add_argument("--sites", type=int, default=4_096)
+    deepmaxent_pilot.add_argument("--species", type=int, default=20)
+    deepmaxent_pilot.add_argument("--epochs", type=int, default=20)
+    deepmaxent_pilot.add_argument("--full-sites", type=int, default=243_541)
+    deepmaxent_pilot.add_argument("--full-epochs", type=int, default=100)
+    deepmaxent_gate = commands.add_parser("deepmaxent-gate")
+    deepmaxent_gate.add_argument("--config", type=Path, required=True)
+    deepmaxent_gate.add_argument("--official-checkout", type=Path, required=True)
+    deepmaxent_gate.add_argument("--pilot", type=Path, required=True)
+    deepmaxent_gate.add_argument("--output", type=Path, required=True)
+    run_deepmaxent = commands.add_parser("run-deepmaxent")
+    run_deepmaxent.add_argument("--gate", type=Path, required=True)
     return parser
 
 
@@ -249,6 +264,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.output,
         )
         return 0
+    if arguments.command == "deepmaxent-pilot":
+        from provenance_sdm.deepmaxent_adapter import run_deepmaxent_pilot
+
+        run_deepmaxent_pilot(
+            arguments.official_checkout,
+            arguments.output,
+            n_sites=arguments.sites,
+            n_species=arguments.species,
+            epochs=arguments.epochs,
+            full_site_count=arguments.full_sites,
+            full_epochs=arguments.full_epochs,
+        )
+        return 0
+    if arguments.command == "deepmaxent-gate":
+        from provenance_sdm.deepmaxent_adapter import evaluate_deepmaxent_gate
+
+        report = evaluate_deepmaxent_gate(
+            arguments.official_checkout,
+            arguments.pilot,
+            load_study_config(arguments.config),
+        )
+        write_manifest(asdict(report), arguments.output, allow_replace=True)
+        return 0 if report.include else 1
+    if arguments.command == "run-deepmaxent":
+        payload = json.loads(arguments.gate.read_text(encoding="utf-8"))
+        if payload.get("include") is not True:
+            return 1
+        raise ValueError(
+            "passed gate requires a separately configured full DeepMaxent run"
+        )
     metrics = pd.read_parquet(arguments.results)
     arguments.output.mkdir(parents=True, exist_ok=True)
     if arguments.command == "summarize-simulation":

@@ -98,3 +98,39 @@ Twenty-five- and 100-km blocks and publisher-level provenance are exported as
 sensitivity analyses. Uniform, conventional target-group, and
 provenance-matched backgrounds share one feasible cell budget within every
 fold and are evaluated on identical held-out rows.
+
+## DeepMaxent gate
+
+DeepMaxent is an optional multispecies reference, loaded from the official
+repository rather than reimplemented here. Install the isolated optional
+dependencies, run the representative timing pilot, and evaluate the gate:
+
+```bash
+python -m pip install -e ".[deepmaxent]"
+provenance-sdm deepmaxent-pilot \
+  --official-checkout ../official-deepmaxent \
+  --output outputs/deepmaxent_pilot.parquet
+provenance-sdm deepmaxent-gate \
+  --config config/study.yaml \
+  --official-checkout ../official-deepmaxent \
+  --pilot outputs/deepmaxent_pilot.parquet \
+  --output outputs/deepmaxent_gate.json
+```
+
+The tested official version is commit
+`3587ad743b3c1898f61ac1c1c5f8b2884b750db4`, associated with the
+[published DeepMaxent paper](https://doi.org/10.1111/2041-210x.70262) and
+[archived software](https://doi.org/10.5281/zenodo.18377697). The gate checks
+the normalized Poisson formula against an independent NumPy oracle, exercises
+official model/loss gradients, executes the reviewed core cells of the
+repository tutorial, requires three successful pilot seeds, verifies
+site-normalized prediction surfaces, and enforces a seven-day projected
+runtime ceiling.
+
+The distributed tutorial's raw pre-cropping raster folder is absent, so the
+gate starts from its 19 supplied cropped rasters and reduces the tutorial to
+two preflight epochs without changing model or loss code. The official
+multispecies TGB mode uses the pooled set of recorded sites. It cannot express
+species-specific PM-TGB supports without changing the official loss.
+Accordingly, DeepMaxent may be reported only as uniform/conventional pooled
+TGB context, never as an implementation of PM-TGB.

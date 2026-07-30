@@ -1,0 +1,33 @@
+{
+  "archived_software_doi": "10.5281/zenodo.18377697",
+  "comparable_predictions_passed": true,
+  "comparison_scope": [
+    "uniform landscape support",
+    "conventional pooled target-group support"
+  ],
+  "formula_check_passed": true,
+  "include": true,
+  "multi_seed_pilot_passed": true,
+  "official_commit": "3587ad743b3c1898f61ac1c1c5f8b2884b750db4",
+  "official_repository": "https://github.com/RYCKEWAERT/deepmaxent",
+  "paper_doi": "10.1111/2041-210x.70262",
+  "pilot": {
+    "epochs": 20,
+    "full_epochs": 100,
+    "full_site_count": 243541,
+    "median_runtime_seconds": 0.30825395800638944,
+    "n_sites": 4096,
+    "n_species": 20,
+    "projected_calendar_days": 0.7636767291954965,
+    "seeds": [
+      17,
+      29,
+      43
+    ]
+  },
+  "pm_tgb_implemented": false,
+  "repository_example_note": "Reviewed core tutorial cells executed from the supplied cropped rasters for two preflight epochs; the absent raw pre-cropping folder was skipped.",
+  "repository_example_passed": true,
+  "tested_device": "cpu",
+  "tested_torch": "2.13.0"
+}

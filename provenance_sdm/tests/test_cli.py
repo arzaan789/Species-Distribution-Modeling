@@ -23,3 +23,6 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "clean-gbif" in output
     assert "run-empirical" in output
     assert "figures-empirical" in output
+    assert "deepmaxent-pilot" in output
+    assert "deepmaxent-gate" in output
+    assert "run-deepmaxent" in output

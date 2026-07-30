@@ -29,6 +29,10 @@ test = [
     "pytest>=8.3",
     "responses>=0.25",
 ]
+deepmaxent = [
+    "torch==2.13.0",
+    "tqdm>=4.70",
+]
 
 [project.scripts]
 provenance-sdm = "provenance_sdm.cli:main"
