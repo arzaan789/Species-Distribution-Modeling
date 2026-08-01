@@ -17,7 +17,7 @@ from sklearn.metrics import roc_auc_score
 
 from provenance_sdm.config import StudyConfig
 from provenance_sdm.landscape import Landscape
-from provenance_sdm.maxent import fit_maxent
+from provenance_sdm.maxent import PRIMARY_REGULARIZATION, fit_maxent
 from provenance_sdm.metrics import continuous_boyce, top_quantile_overlap
 from provenance_sdm.provenance import pm_tgb_weights, source_distribution_distance
 from provenance_sdm.simulation_runner import seed_for
@@ -509,7 +509,7 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                             train_presence,
                             background,
                             feature_names,
-                            regularization=1.0,
+                            regularization=PRIMARY_REGULARIZATION,
                             seed=seed_for(
                                 inputs.config.simulation.seed,
                                 "empirical-model",
@@ -585,6 +585,7 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                                 "feature_basis": (
                                     prediction_result.feature_basis
                                 ),
+                                "model_regularization": PRIMARY_REGULARIZATION,
                                 "max_cell_mass": (
                                     prediction_result.max_cell_mass
                                 ),

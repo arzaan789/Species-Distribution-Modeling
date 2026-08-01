@@ -13,7 +13,7 @@ import pandas as pd
 from provenance_sdm.backgrounds import make_backgrounds
 from provenance_sdm.config import StudyConfig
 from provenance_sdm.landscape import Landscape
-from provenance_sdm.maxent import fit_maxent
+from provenance_sdm.maxent import PRIMARY_REGULARIZATION, fit_maxent
 from provenance_sdm.metrics import generate_unbiased_evaluation, truth_metrics
 from provenance_sdm.observation import simulate_observations, simulate_programmes
 from provenance_sdm.provenance import source_distribution_distance
@@ -122,6 +122,13 @@ def run_simulation(
         completed = pd.read_parquet(result_path)
         if completed.duplicated(list(RESULT_KEY_COLUMNS)).any():
             raise ValueError("existing simulation results contain duplicate keys")
+        if (
+            "model_regularization" not in completed
+            or not completed.model_regularization.eq(PRIMARY_REGULARIZATION).all()
+        ):
+            raise ValueError(
+                "existing simulation results use a different model regularization"
+            )
     else:
         completed = pd.DataFrame()
     completed_keys = (
@@ -239,7 +246,7 @@ def run_simulation(
                                 presence,
                                 backgrounds[arm],
                                 landscape.feature_names,
-                                regularization=1.0,
+                                regularization=PRIMARY_REGULARIZATION,
                                 seed=seed_for(
                                     simulation.seed,
                                     "model",
@@ -281,6 +288,7 @@ def run_simulation(
                                     ),
                                     "source_distribution_distance": source_distance,
                                     "feature_basis": prediction_result.feature_basis,
+                                    "model_regularization": PRIMARY_REGULARIZATION,
                                     "max_cell_mass": prediction_result.max_cell_mass,
                                     "effective_cell_count": (
                                         prediction_result.effective_cell_count
@@ -364,6 +372,10 @@ def audit_simulation(path: Path, config: StudyConfig) -> dict[str, object]:
         "feature_basis" in actual
         and actual.feature_basis.eq("linear").all()
     )
+    correct_regularization = bool(
+        "model_regularization" in actual
+        and actual.model_regularization.eq(PRIMARY_REGULARIZATION).all()
+    )
     stability_columns_present = all(
         column in actual for column in STABILITY_COLUMNS
     )
@@ -392,6 +404,7 @@ def audit_simulation(path: Path, config: StudyConfig) -> dict[str, object]:
         and finite
         and complete_arms
         and correct_basis
+        and correct_regularization
         and stable_predictions
         else "failed"
     )
@@ -406,6 +419,7 @@ def audit_simulation(path: Path, config: StudyConfig) -> dict[str, object]:
         "finite_primary_metrics": finite,
         "complete_background_arms": complete_arms,
         "linear_feature_basis": correct_basis,
+        "primary_regularization": correct_regularization,
         "stable_predictions": stable_predictions,
         "missing_keys": missing_rows.to_dict(orient="records"),
         "unexpected_keys": unexpected_rows.to_dict(orient="records"),

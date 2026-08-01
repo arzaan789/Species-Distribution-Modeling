@@ -51,6 +51,7 @@ def complete_tiny_run(
     rows["lower_clip_cells"] = 0
     rows["lower_clip_fraction"] = 0.0
     rows["solver_converged"] = True
+    rows["model_regularization"] = 2.0
     rows["unsupported_mass"] = np.where(
         rows.background_arm.eq("pm_tgb"),
         0.1,
@@ -92,6 +93,7 @@ def complete_tiny_run(
                                 "lower_clip_cells": 0,
                                 "lower_clip_fraction": 0.0,
                                 "solver_converged": True,
+                                "model_regularization": 2.0,
                             }
                         )
     pd.DataFrame(empirical_rows).to_parquet(
@@ -253,3 +255,19 @@ def test_reproducibility_audit_rejects_stale_nonlinear_results(
 
     assert audit["core_status"] == "failed"
     assert audit["linear_feature_basis"] is False
+
+
+def test_reproducibility_audit_rejects_stale_regularization(
+    tmp_path: Path,
+    study_config,
+) -> None:
+    config = complete_tiny_run(tmp_path, study_config)
+    path = tmp_path / "outputs" / "empirical_metrics.parquet"
+    rows = pd.read_parquet(path)
+    rows.loc[0, "model_regularization"] = 1.0
+    rows.to_parquet(path, index=False)
+
+    audit = build_reproducibility_audit(tmp_path, config)
+
+    assert audit["core_status"] == "failed"
+    assert audit["checks"]["primary_regularization"] is False

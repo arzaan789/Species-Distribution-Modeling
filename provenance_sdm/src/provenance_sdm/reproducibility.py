@@ -13,6 +13,7 @@ import pandas as pd
 
 from provenance_sdm.config import StudyConfig
 from provenance_sdm.manifests import sha256_file
+from provenance_sdm.maxent import PRIMARY_REGULARIZATION
 from provenance_sdm.simulation_runner import PRIMARY_METRICS, audit_simulation
 from provenance_sdm.summaries import hierarchical_bootstrap
 
@@ -150,6 +151,12 @@ def build_reproducibility_audit(
         and "feature_basis" in empirical
         and simulation.feature_basis.eq("linear").all()
         and empirical.feature_basis.eq("linear").all()
+    )
+    primary_regularization = bool(
+        "model_regularization" in simulation
+        and "model_regularization" in empirical
+        and simulation.model_regularization.eq(PRIMARY_REGULARIZATION).all()
+        and empirical.model_regularization.eq(PRIMARY_REGULARIZATION).all()
     )
     stability_columns = {
         "max_cell_mass",
@@ -291,6 +298,7 @@ def build_reproducibility_audit(
         "empirical_provenance_exact": empirical_provenance_exact,
         "empirical_folds_complete": empirical_folds_complete,
         "linear_feature_basis": linear_feature_basis,
+        "primary_regularization": primary_regularization,
         "stable_predictions": stable_predictions,
         "spatial_fold_artifacts": spatial_fold_artifacts,
         "cleaning_audit_valid": cleaning_valid,

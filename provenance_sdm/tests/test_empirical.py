@@ -296,6 +296,7 @@ def test_empirical_arms_share_evaluation_rows_and_background_budget(
     assert required <= set(rows)
     assert rows.feature_basis.eq("linear").all()
     assert rows.solver_converged.all()
+    assert rows.model_regularization.eq(2.0).all()
 
     assignments = pd.read_parquet(
         tmp_path / "spatial_fold_assignments.parquet"

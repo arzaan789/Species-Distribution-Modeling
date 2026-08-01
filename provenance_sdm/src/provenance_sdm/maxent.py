@@ -16,6 +16,7 @@ from provenance_sdm.landscape import Landscape
 
 FEATURE_BASIS = "linear"
 LOWER_LOG_INTENSITY_CLIP = -50.0
+PRIMARY_REGULARIZATION = 2.0
 
 
 @dataclass(frozen=True)

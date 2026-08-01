@@ -129,6 +129,21 @@ def test_runner_resumes_without_duplicate_rows(
     assert set(second.feature_basis) == {"linear"}
     assert np.isfinite(second.loc[:, list(numeric)]).all().all()
     assert second.solver_converged.all()
+    assert second.model_regularization.eq(2.0).all()
+
+
+def test_runner_rejects_checkpoint_from_different_regularization(
+    tiny_config,
+    runner_landscape,
+    tmp_path: Path,
+) -> None:
+    path = run_simulation(tiny_config, runner_landscape, tmp_path)
+    rows = pd.read_parquet(path)
+    rows["model_regularization"] = 1.0
+    rows.to_parquet(path, index=False)
+
+    with pytest.raises(ValueError, match="regularization"):
+        run_simulation(tiny_config, runner_landscape, tmp_path)
 
 
 def test_audit_reports_exact_missing_fit_keys(
@@ -183,3 +198,19 @@ def test_audit_rejects_a_numerically_collapsed_map(
 
     assert audit["status"] == "failed"
     assert audit["stable_predictions"] is False
+
+
+def test_audit_rejects_results_from_different_regularization(
+    tiny_config,
+    runner_landscape,
+    tmp_path: Path,
+) -> None:
+    path = run_simulation(tiny_config, runner_landscape, tmp_path)
+    rows = pd.read_parquet(path)
+    rows.loc[0, "model_regularization"] = 1.0
+    rows.to_parquet(path, index=False)
+
+    audit = audit_simulation(path, tiny_config)
+
+    assert audit["status"] == "failed"
+    assert audit["primary_regularization"] is False
