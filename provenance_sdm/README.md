@@ -12,7 +12,9 @@ hedgehog, and red squirrel in Great Britain. Bats are excluded throughout.
 
 Every primary arm uses the same L2-regularized, class-balanced
 presence-background logistic model with standardized linear environmental
-features. Virtual ecological truth remains nonlinear, so fitted-model
+features. Normalized sample weights give presences and backgrounds 0.5 total
+loss mass each, so record count cannot silently weaken the fixed L2 penalty.
+Virtual ecological truth remains nonlinear, so fitted-model
 misspecification is controlled and identical across background arms. Returned
 surfaces are normalized relative suitability masses, not occurrence or
 occupancy probabilities.

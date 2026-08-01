@@ -64,6 +64,36 @@ def test_fit_is_deterministic_under_fixed_seed(gradient_data) -> None:
     np.testing.assert_allclose(first.estimator.intercept_, second.estimator.intercept_)
 
 
+def test_balanced_loss_is_invariant_to_repeating_every_training_row(
+    gradient_data,
+) -> None:
+    _, presence, background, _ = gradient_data
+    repeated_presence = pd.concat([presence] * 5, ignore_index=True)
+    repeated_background = pd.concat([background] * 5, ignore_index=True)
+
+    original = fit_maxent(presence, background, ("env_1",), 1.0, seed=8)
+    repeated = fit_maxent(
+        repeated_presence,
+        repeated_background,
+        ("env_1",),
+        1.0,
+        seed=8,
+    )
+
+    np.testing.assert_allclose(
+        original.estimator.coef_,
+        repeated.estimator.coef_,
+        rtol=1e-7,
+        atol=1e-9,
+    )
+    np.testing.assert_allclose(
+        original.estimator.intercept_,
+        repeated.estimator.intercept_,
+        rtol=1e-7,
+        atol=1e-9,
+    )
+
+
 def test_batched_landscape_prediction_matches_single_batch(gradient_data) -> None:
     landscape, presence, background, _ = gradient_data
     model = fit_maxent(presence, background, ("env_1",), 1.0, seed=8)

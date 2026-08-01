@@ -48,6 +48,11 @@ deterministic solver, and presence/background interpretation. Predictions will
 remain normalized relative suitability masses, not occurrence or occupancy
 probabilities.
 
+Class balancing will use explicit normalized sample weights: presence rows
+jointly contribute 0.5 loss mass and background rows jointly contribute 0.5.
+This prevents total record count from silently rescaling the fixed L2 penalty
+while retaining equal class influence.
+
 Virtual ecological truth will continue to include nonlinear niches. This
 intentional model misspecification applies equally to every background arm and
 tests whether background construction improves recovery under a simpler fitted

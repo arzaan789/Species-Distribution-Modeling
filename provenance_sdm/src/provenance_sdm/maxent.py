@@ -154,16 +154,21 @@ def fit_maxent(
     labels = np.concatenate(
         [np.ones(len(presence), dtype=int), np.zeros(len(background), dtype=int)]
     )
+    sample_weight = np.concatenate(
+        [
+            np.full(len(presence), 0.5 / len(presence)),
+            np.full(len(background), 0.5 / len(background)),
+        ]
+    )
     estimator = LogisticRegression(
         C=1.0 / regularization,
-        class_weight="balanced",
         solver="lbfgs",
         max_iter=1_000,
         random_state=seed,
     )
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", ConvergenceWarning)
-        estimator.fit(design, labels)
+        estimator.fit(design, labels, sample_weight=sample_weight)
     converged = not any(
         issubclass(item.category, ConvergenceWarning) for item in caught
     )
