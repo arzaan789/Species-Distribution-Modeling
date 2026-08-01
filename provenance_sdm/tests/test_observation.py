@@ -5,7 +5,11 @@ import pandas as pd
 import pytest
 
 from provenance_sdm.landscape import landscape_from_arrays
-from provenance_sdm.observation import simulate_observations, simulate_programmes
+from provenance_sdm.observation import (
+    SpeciesEffortMapping,
+    simulate_observations,
+    simulate_programmes,
+)
 from provenance_sdm.virtual_species import simulate_species_truth
 
 
@@ -91,6 +95,46 @@ def test_observed_cells_follow_suitability_times_species_effort(
         .to_numpy()
     )
     assert np.corrcoef(actual, expected)[0, 1] > 0.95
+
+
+def test_species_effort_is_computed_lazily_without_retaining_cell_arrays(
+    toy_landscape,
+) -> None:
+    truths = simulate_species_truth(toy_landscape, n_species=20, seed=7)
+    programmes = simulate_programmes(
+        toy_landscape, n_programmes=6, bias_level="strong", seed=8
+    )
+    observed = simulate_observations(
+        truths,
+        programmes,
+        alignment="partial",
+        bias_level="strong",
+        min_records=20,
+        max_records=20,
+        seed=9,
+    )
+
+    assert isinstance(observed.species_effort, SpeciesEffortMapping)
+    assert not any(
+        isinstance(value, np.ndarray)
+        for value in vars(observed.species_effort).values()
+    )
+
+    mixture = (
+        observed.source_mixtures.query("species_id == 'sp_000'")
+        .set_index("programme_id")
+        .reindex([item.programme_id for item in programmes])
+        .weight.to_numpy(dtype=float)
+    )
+    expected = mixture @ np.vstack([item.intensity for item in programmes])
+    expected /= expected.sum()
+    expected = np.asarray(expected, dtype=np.float32)
+
+    np.testing.assert_array_equal(observed.species_effort["sp_000"], expected)
+    np.testing.assert_array_equal(
+        observed.species_effort["sp_000"],
+        observed.species_effort["sp_000"],
+    )
 
 
 def test_long_tail_counts_stay_within_declared_bounds(toy_landscape) -> None:

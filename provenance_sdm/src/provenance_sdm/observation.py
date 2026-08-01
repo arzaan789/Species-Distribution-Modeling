@@ -27,6 +27,47 @@ class ProgrammeEffort:
     bias_level: str
 
 
+class SpeciesEffortMapping(Mapping[str, np.ndarray]):
+    """Reconstruct species effort surfaces on demand without retaining them."""
+
+    def __init__(
+        self,
+        source_mixtures: pd.DataFrame,
+        programmes: tuple[ProgrammeEffort, ...],
+    ) -> None:
+        self._source_mixtures = source_mixtures
+        self._programmes = programmes
+        self._species_ids = tuple(source_mixtures.species_id.drop_duplicates())
+
+    def __getitem__(self, species_id: str) -> np.ndarray:
+        if species_id not in self._species_ids:
+            raise KeyError(species_id)
+        programme_ids = [item.programme_id for item in self._programmes]
+        mixture = (
+            self._source_mixtures.loc[
+                self._source_mixtures.species_id == species_id
+            ]
+            .set_index("programme_id")
+            .reindex(programme_ids)
+            .weight.to_numpy(dtype=float)
+        )
+        if np.isnan(mixture).any():
+            raise ValueError(
+                f"incomplete programme mixture for species {species_id!r}"
+            )
+        effort = mixture @ np.vstack(
+            [item.intensity for item in self._programmes]
+        )
+        effort /= effort.sum()
+        return np.asarray(effort, dtype=np.float32)
+
+    def __iter__(self):
+        return iter(self._species_ids)
+
+    def __len__(self) -> int:
+        return len(self._species_ids)
+
+
 @dataclass(frozen=True)
 class ObservedCommunity:
     records: pd.DataFrame
@@ -166,19 +207,12 @@ def simulate_observations(
         generator,
     )
     effort_matrix = np.vstack([programme.intensity for programme in programmes])
-    species_effort: dict[str, np.ndarray] = {}
     record_tables: list[pd.DataFrame] = []
     mixture_rows: list[dict[str, object]] = []
     next_record = 0
 
     for species_index, species in enumerate(truth):
         mixture = mixtures[species_index]
-        mixed_effort = mixture @ effort_matrix
-        mixed_effort /= mixed_effort.sum()
-        species_effort[species.species_id] = np.asarray(
-            mixed_effort,
-            dtype=np.float32,
-        )
 
         joint_probability = (
             mixture[:, None]
@@ -222,11 +256,12 @@ def simulate_observations(
             for programme_index, programme in enumerate(programmes)
         )
 
+    source_mixtures = pd.DataFrame(mixture_rows)
     return ObservedCommunity(
         records=pd.concat(record_tables, ignore_index=True),
-        species_effort=species_effort,
+        species_effort=SpeciesEffortMapping(source_mixtures, programmes),
         programme_effort=programmes,
-        source_mixtures=pd.DataFrame(mixture_rows),
+        source_mixtures=source_mixtures,
         truth=truth,
         landscape=_landscape_from_truth_context(truth),
     )

@@ -93,10 +93,8 @@ def make_backgrounds(
     pm_cell_weights = provenance.weights.groupby(
         candidates.set_index("record_id").cell_id
     ).sum()
-    oracle_weights = pd.Series(
-        observed.species_effort[focal_species],
-        index=landscape.cell_id,
-    )
+    focal_effort = observed.species_effort[focal_species]
+    oracle_weights = pd.Series(focal_effort, index=landscape.cell_id)
     available_cells = min(
         int(uniform_weights.gt(0).sum()),
         int(conventional_weights.groupby(level=0).sum().gt(0).sum()),
@@ -141,10 +139,7 @@ def make_backgrounds(
         for arm, cells in selected.items()
     }
     arms["pm_tgb"]["unsupported_mass"] = provenance.unsupported_mass
-    oracle_lookup = pd.Series(
-        observed.species_effort[focal_species],
-        index=landscape.cell_id,
-    )
+    oracle_lookup = pd.Series(focal_effort, index=landscape.cell_id)
     arms["oracle_effort"]["true_effort"] = arms["oracle_effort"].cell_id.map(
         oracle_lookup
     )
