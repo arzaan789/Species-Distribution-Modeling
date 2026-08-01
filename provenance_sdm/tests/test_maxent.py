@@ -75,6 +75,51 @@ def test_batched_landscape_prediction_matches_single_batch(gradient_data) -> Non
     assert batched.sum() == pytest.approx(1.0)
 
 
+def test_transform_returns_only_standardized_linear_features(gradient_data) -> None:
+    landscape, presence, background, _ = gradient_data
+    model = fit_maxent(
+        presence,
+        background,
+        feature_names=("env_1",),
+        regularization=1.0,
+        seed=5,
+    )
+
+    design = model.transform(landscape.cells)
+
+    assert design.shape == (len(landscape.cells), 1)
+    np.testing.assert_allclose(
+        design[:, 0],
+        (landscape.cells.env_1.to_numpy() - model.feature_means[0])
+        / model.feature_scales[0],
+    )
+
+
+def test_linear_basis_does_not_turn_symmetric_extremes_into_outlier_spike() -> None:
+    presence = pd.DataFrame({"env_1": [-2.0, 2.0]})
+    background = pd.DataFrame({"env_1": [-0.5, 0.5]})
+    grid = pd.DataFrame(
+        {
+            "env_1": [-2.0, -1.0, 0.0, 1.0, 2.0, 12.0],
+            "area_weight": 1.0,
+        }
+    )
+    model = fit_maxent(
+        presence,
+        background,
+        feature_names=("env_1",),
+        regularization=1.0,
+        seed=5,
+    )
+
+    result = model.predict_with_diagnostics(grid)
+
+    assert result.feature_basis == "linear"
+    assert result.max_cell_mass < 0.20
+    assert result.effective_cell_count > 5.9
+    assert np.isfinite(result.log_intensity_range)
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

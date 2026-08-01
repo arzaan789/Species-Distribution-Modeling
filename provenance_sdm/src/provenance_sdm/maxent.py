@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+from sklearn.exceptions import ConvergenceWarning
 
 from provenance_sdm.landscape import Landscape
+
+
+FEATURE_BASIS = "linear"
+LOWER_LOG_INTENSITY_CLIP = -50.0
+
+
+@dataclass(frozen=True)
+class PredictionResult:
+    suitability: np.ndarray
+    feature_basis: str
+    max_cell_mass: float
+    effective_cell_count: float
+    log_intensity_range: float
+    lower_clip_cells: int
+    lower_clip_fraction: float
+    solver_converged: bool
 
 
 @dataclass(frozen=True)
@@ -18,6 +36,7 @@ class MaxentModel:
     feature_means: np.ndarray
     feature_scales: np.ndarray
     estimator: LogisticRegression
+    solver_converged: bool
 
     def transform(self, frame: pd.DataFrame) -> np.ndarray:
         missing = set(self.feature_names).difference(frame.columns)
@@ -27,22 +46,16 @@ class MaxentModel:
         if not np.isfinite(linear).all():
             raise ValueError("prediction features must be finite")
         linear = (linear - self.feature_means) / self.feature_scales
-        quadratic = linear**2
-        interactions = [
-            linear[:, left] * linear[:, right]
-            for left in range(linear.shape[1])
-            for right in range(left + 1, linear.shape[1])
-        ]
-        return np.column_stack([linear, quadratic, *interactions])
+        return linear
 
     def predict_log_intensity(self, frame: pd.DataFrame) -> np.ndarray:
         return np.asarray(self.estimator.decision_function(self.transform(frame)))
 
-    def predict_suitability(
+    def predict_with_diagnostics(
         self,
         landscape: Landscape | pd.DataFrame,
         batch_size: int = 50_000,
-    ) -> np.ndarray:
+    ) -> PredictionResult:
         frame = landscape.cells if isinstance(landscape, Landscape) else landscape
         if (
             isinstance(batch_size, bool)
@@ -56,14 +69,38 @@ class MaxentModel:
             log_intensity[start:stop] = self.predict_log_intensity(
                 frame.iloc[start:stop]
             )
+        log_intensity_range = float(np.ptp(log_intensity))
         log_intensity -= float(log_intensity.max())
-        intensity = np.exp(np.clip(log_intensity, -50.0, 0.0))
+        lower_clip = log_intensity < LOWER_LOG_INTENSITY_CLIP
+        intensity = np.exp(
+            np.clip(log_intensity, LOWER_LOG_INTENSITY_CLIP, 0.0)
+        )
         if "area_weight" in frame:
             intensity *= frame.area_weight.to_numpy(dtype=float)
         total = float(intensity.sum())
         if not np.isfinite(total) or total <= 0:
             raise ValueError("predicted landscape intensity must be finite and positive")
-        return intensity / total
+        suitability = intensity / total
+        return PredictionResult(
+            suitability=suitability,
+            feature_basis=FEATURE_BASIS,
+            max_cell_mass=float(suitability.max()),
+            effective_cell_count=float(1.0 / np.square(suitability).sum()),
+            log_intensity_range=log_intensity_range,
+            lower_clip_cells=int(lower_clip.sum()),
+            lower_clip_fraction=float(lower_clip.mean()),
+            solver_converged=self.solver_converged,
+        )
+
+    def predict_suitability(
+        self,
+        landscape: Landscape | pd.DataFrame,
+        batch_size: int = 50_000,
+    ) -> np.ndarray:
+        return self.predict_with_diagnostics(
+            landscape,
+            batch_size,
+        ).suitability
 
 
 def fit_maxent(
@@ -111,6 +148,7 @@ def fit_maxent(
         feature_means=means,
         feature_scales=scales,
         estimator=LogisticRegression(),
+        solver_converged=False,
     )
     design = transform_model.transform(combined)
     labels = np.concatenate(
@@ -123,10 +161,16 @@ def fit_maxent(
         max_iter=1_000,
         random_state=seed,
     )
-    estimator.fit(design, labels)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", ConvergenceWarning)
+        estimator.fit(design, labels)
+    converged = not any(
+        issubclass(item.category, ConvergenceWarning) for item in caught
+    )
     return MaxentModel(
         feature_names=names,
         feature_means=means,
         feature_scales=scales,
         estimator=estimator,
+        solver_converged=converged,
     )
