@@ -78,6 +78,7 @@ After the DOI download succeeds and the archive is retrieved, run:
 provenance-sdm clean-gbif \
   --config config/study.yaml \
   --archive raw/0018113-260721160103020.zip \
+  --request outputs/gbif_request.json \
   --grid outputs/gb_grid.parquet \
   --taxa outputs/taxa.json \
   --output outputs

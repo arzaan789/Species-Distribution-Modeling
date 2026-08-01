@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from provenance_sdm.cli import main
+from provenance_sdm.cli import build_parser, main
 
 
 def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
@@ -28,3 +28,27 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "run-deepmaxent" in output
     assert "export-manuscript" in output
     assert "audit-all" in output
+
+
+def test_clean_gbif_requires_the_saved_request_manifest(capsys) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(
+            [
+                "clean-gbif",
+                "--config",
+                "config.yaml",
+                "--archive",
+                "download.zip",
+                "--grid",
+                "grid.parquet",
+                "--taxa",
+                "taxa.json",
+                "--output",
+                "outputs",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert "--request" in capsys.readouterr().err

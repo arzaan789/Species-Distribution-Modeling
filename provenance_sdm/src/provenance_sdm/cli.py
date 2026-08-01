@@ -100,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     clean = commands.add_parser("clean-gbif")
     clean.add_argument("--config", type=Path, required=True)
     clean.add_argument("--archive", type=Path, required=True)
+    clean.add_argument("--request", type=Path, required=True)
     clean.add_argument("--grid", type=Path, required=True)
     clean.add_argument("--taxa", type=Path, required=True)
     clean.add_argument("--crs", default="EPSG:27700")
@@ -229,7 +230,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         taxon_keys = _load_taxon_keys(arguments.taxa)
         allowed_taxa = set(taxon_keys.values())
         attached = attach_nearest_grid_cells(
-            read_gbif_archive(arguments.archive),
+            read_gbif_archive(
+                arguments.archive,
+                json.loads(arguments.request.read_text(encoding="utf-8")),
+            ),
             landscape,
             arguments.max_distance_m,
         )

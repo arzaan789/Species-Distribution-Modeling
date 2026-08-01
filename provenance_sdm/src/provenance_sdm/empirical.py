@@ -57,27 +57,73 @@ class EmpiricalInputs:
     n_folds: int = 5
 
 
-def read_gbif_archive(path: Path) -> pd.DataFrame:
+def _verified_simple_csv_request(
+    request: Mapping[str, object] | None,
+    archive_path: Path,
+) -> bool:
+    if request is None:
+        return False
+    predicate = request.get("predicate")
+    if not isinstance(predicate, Mapping):
+        return False
+    predicates = predicate.get("predicates")
+    if not isinstance(predicates, list):
+        return False
+    geospatial_filter = any(
+        isinstance(item, Mapping)
+        and item.get("type") == "equals"
+        and item.get("key") == "HAS_GEOSPATIAL_ISSUE"
+        and str(item.get("value")).casefold() == "false"
+        for item in predicates
+    )
+    return (
+        request.get("format") == "SIMPLE_CSV"
+        and request.get("download_key") == archive_path.stem
+        and geospatial_filter
+    )
+
+
+def read_gbif_archive(
+    path: Path,
+    request: Mapping[str, object] | None = None,
+) -> pd.DataFrame:
     """Read the occurrence table from a verified GBIF SIMPLE_CSV archive."""
 
     archive_path = Path(path)
     try:
         with zipfile.ZipFile(archive_path) as archive:
-            members = [
+            occurrence_members = [
                 member
                 for member in archive.namelist()
                 if Path(member).name.casefold() == "occurrence.txt"
             ]
-            if len(members) != 1:
+            simple_csv_members = [
+                member
+                for member in archive.namelist()
+                if Path(member).suffix.casefold() == ".csv"
+            ]
+            if len(occurrence_members) == 1 and not simple_csv_members:
+                member = occurrence_members[0]
+                server_filtered = False
+            elif len(simple_csv_members) == 1 and not occurrence_members:
+                if not _verified_simple_csv_request(request, archive_path):
+                    raise ValueError(
+                        "GBIF SIMPLE_CSV requires a verified geospatial predicate"
+                    )
+                member = simple_csv_members[0]
+                server_filtered = True
+            else:
                 raise ValueError(
-                    "GBIF archive must contain exactly one occurrence.txt member"
+                    "GBIF archive must contain exactly one occurrence.txt or CSV member"
                 )
-            with archive.open(members[0]) as stream:
+            with archive.open(member) as stream:
                 records = pd.read_csv(stream, sep="\t", low_memory=False)
     except zipfile.BadZipFile as exc:
         raise ValueError("GBIF archive is not a valid ZIP file") from exc
     if records.empty:
         raise ValueError("GBIF occurrence table is empty")
+    if server_filtered and "hasGeospatialIssues" not in records:
+        records["hasGeospatialIssues"] = False
     return records
 
 

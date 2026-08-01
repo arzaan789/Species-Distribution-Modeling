@@ -119,6 +119,53 @@ def test_gbif_simple_csv_archive_is_read_from_occurrence_member(
     assert {"taxonKey", "datasetKey", "publishingOrgKey"} <= set(restored)
 
 
+def test_current_gbif_simple_csv_member_uses_verified_request_filter(
+    raw_occurrences: pd.DataFrame,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "0018113-260721160103020.zip"
+    payload = raw_occurrences.drop(
+        columns=["cell_id", "hasGeospatialIssues"]
+    ).to_csv(sep="\t", index=False)
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("0018113-260721160103020.csv", payload)
+    request = {
+        "download_key": "0018113-260721160103020",
+        "format": "SIMPLE_CSV",
+        "predicate": {
+            "type": "and",
+            "predicates": [
+                {
+                    "type": "equals",
+                    "key": "HAS_GEOSPATIAL_ISSUE",
+                    "value": "false",
+                }
+            ],
+        },
+    }
+
+    restored = read_gbif_archive(archive_path, request)
+
+    assert len(restored) == len(raw_occurrences)
+    assert restored.hasGeospatialIssues.eq(False).all()
+    assert restored.taxonKey.tolist() == raw_occurrences.taxonKey.tolist()
+
+
+def test_simple_csv_without_verified_geospatial_predicate_is_rejected(
+    raw_occurrences: pd.DataFrame,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "gbif.zip"
+    payload = raw_occurrences.drop(
+        columns=["cell_id", "hasGeospatialIssues"]
+    ).to_csv(sep="\t", index=False)
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("download.csv", payload)
+
+    with pytest.raises(ValueError, match="verified geospatial predicate"):
+        read_gbif_archive(archive_path)
+
+
 def test_occurrence_coordinates_attach_to_nearest_projected_grid_cell() -> None:
     longitude = np.array((-2.0, -1.9, -2.0, -1.9))
     latitude = np.array((52.0, 52.0, 52.1, 52.1))
