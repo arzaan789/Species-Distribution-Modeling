@@ -85,6 +85,13 @@ def complete_tiny_run(
                                 "unsupported_mass": 0.1
                                 if arm == "pm_tgb"
                                 else 0.0,
+                                "feature_basis": "linear",
+                                "max_cell_mass": 0.01,
+                                "effective_cell_count": 100.0,
+                                "log_intensity_range": 4.0,
+                                "lower_clip_cells": 0,
+                                "lower_clip_fraction": 0.0,
+                                "solver_converged": True,
                             }
                         )
     pd.DataFrame(empirical_rows).to_parquet(
@@ -107,6 +114,42 @@ def complete_tiny_run(
             )
     pd.DataFrame(map_rows).to_parquet(
         output / "empirical_maps.parquet",
+        index=False,
+    )
+    assignment_rows = []
+    block_rows = []
+    for species in config.empirical_species:
+        for width in (25_000, 50_000, 100_000):
+            for fold in range(5):
+                assignment_rows.extend(
+                    {
+                        "species": species.key,
+                        "block_width_m": width,
+                        "row_index": fold * 2 + label,
+                        "block_id": f"{fold}:0",
+                        "fold_id": fold,
+                        "label": label,
+                        "cell_id": fold * 2 + label,
+                    }
+                    for label in (0, 1)
+                )
+                block_rows.append(
+                    {
+                        "species": species.key,
+                        "block_width_m": width,
+                        "fold_id": fold,
+                        "block_id": f"{fold}:0",
+                        "rows": 2,
+                        "positive_rows": 1,
+                        "negative_rows": 1,
+                    }
+                )
+    pd.DataFrame(assignment_rows).to_parquet(
+        output / "spatial_fold_assignments.parquet",
+        index=False,
+    )
+    pd.DataFrame(block_rows).to_csv(
+        output / "spatial_block_class_audit.csv",
         index=False,
     )
     pd.DataFrame(
@@ -194,3 +237,19 @@ def test_manuscript_export_writes_four_auditable_tables(
     for path in paths:
         table = pd.read_csv(path)
         assert {"status", "sample_count", "units", "method"} <= set(table)
+
+
+def test_reproducibility_audit_rejects_stale_nonlinear_results(
+    tmp_path: Path,
+    study_config,
+) -> None:
+    config = complete_tiny_run(tmp_path, study_config)
+    path = tmp_path / "outputs" / "simulation_metrics.parquet"
+    rows = pd.read_parquet(path)
+    rows["feature_basis"] = "linear_quadratic_interactions"
+    rows.to_parquet(path, index=False)
+
+    audit = build_reproducibility_audit(tmp_path, config)
+
+    assert audit["core_status"] == "failed"
+    assert audit["linear_feature_basis"] is False

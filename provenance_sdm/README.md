@@ -8,6 +8,22 @@ ecological and observation-process truth.
 The empirical component is restricted to brown hare, hazel dormouse, European
 hedgehog, and red squirrel in Great Britain. Bats are excluded throughout.
 
+## Fitted model and stability boundary
+
+Every primary arm uses the same L2-regularized, class-balanced
+presence-background logistic model with standardized linear environmental
+features. Virtual ecological truth remains nonlinear, so fitted-model
+misspecification is controlled and identical across background arms. Returned
+surfaces are normalized relative suitability masses, not occurrence or
+occupancy probabilities.
+
+Each fit exports maximum cell mass, inverse-Simpson effective cell count,
+full-grid log-intensity range, numerical lower-clip counts, and solver
+convergence. Audits reject maps with more than 10% mass on one cell, fewer than
+50 effective cells, non-finite diagnostics, or unconverged solvers. The
+superseded nonlinear results are preserved under
+`outputs/diagnostic-nonlinear-20260801/` and must not occupy primary paths.
+
 ## Development
 
 Create an isolated environment, install the package with its test dependencies,
@@ -183,8 +199,9 @@ provenance-sdm audit-all \
 ```
 
 `audit-all` fails unless the 14,400 primary fits are complete and finite,
-background budgets are paired, all four empirical species have five folds at
-25/50/100 km and both provenance levels, the GBIF DOI/hash and grid hash are
-present, all cleaning stages are retained, four valid submission PNGs exist,
-and no excluded taxon occurs in retained submission data. DeepMaxent status is
-recorded but never determines core success.
+linear-basis prediction diagnostics are stable, background budgets are paired,
+all four empirical species have five auditable whole-block folds at 25/50/100
+km and both provenance levels, the GBIF DOI/hash and grid hash are present, all
+cleaning stages are retained, four valid submission PNGs exist, and no excluded
+taxon occurs in retained submission data. DeepMaxent status is recorded but
+never determines core success.

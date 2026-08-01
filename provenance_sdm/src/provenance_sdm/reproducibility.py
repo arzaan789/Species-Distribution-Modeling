@@ -27,6 +27,8 @@ SUBMISSION_FIGURES = (
 CORE_OUTPUTS = (
     "simulation_metrics.parquet",
     "empirical_metrics.parquet",
+    "spatial_fold_assignments.parquet",
+    "spatial_block_class_audit.csv",
     "occurrence_cleaning_audit.csv",
     "gbif_archive.json",
     "gb_grid.manifest.json",
@@ -83,6 +85,8 @@ def build_reproducibility_audit(
     }
     simulation = pd.read_parquet(paths["simulation_metrics.parquet"])
     empirical = pd.read_parquet(paths["empirical_metrics.parquet"])
+    assignments = pd.read_parquet(paths["spatial_fold_assignments.parquet"])
+    block_audit = pd.read_csv(paths["spatial_block_class_audit.csv"])
     cleaning = pd.read_csv(paths["occurrence_cleaning_audit.csv"])
     gbif = json.loads(paths["gbif_archive.json"].read_text(encoding="utf-8"))
     grid = json.loads(
@@ -141,6 +145,75 @@ def build_reproducibility_audit(
     empirical_folds_complete = bool(
         empirical_fold_counts.eq(5).all()
     )
+    linear_feature_basis = bool(
+        "feature_basis" in simulation
+        and "feature_basis" in empirical
+        and simulation.feature_basis.eq("linear").all()
+        and empirical.feature_basis.eq("linear").all()
+    )
+    stability_columns = {
+        "max_cell_mass",
+        "effective_cell_count",
+        "log_intensity_range",
+        "lower_clip_cells",
+        "lower_clip_fraction",
+    }
+    stability_columns_present = (
+        stability_columns <= set(simulation)
+        and stability_columns <= set(empirical)
+    )
+    stable_predictions = bool(
+        stability_columns_present
+        and np.isfinite(
+            simulation.loc[:, list(stability_columns)].to_numpy(dtype=float)
+        ).all()
+        and np.isfinite(
+            empirical.loc[:, list(stability_columns)].to_numpy(dtype=float)
+        ).all()
+        and simulation.max_cell_mass.le(0.10).all()
+        and empirical.max_cell_mass.le(0.10).all()
+        and simulation.effective_cell_count.ge(50.0).all()
+        and empirical.effective_cell_count.ge(50.0).all()
+        and "solver_converged" in simulation
+        and "solver_converged" in empirical
+        and simulation.solver_converged.eq(True).all()
+        and empirical.solver_converged.eq(True).all()
+    )
+    assignment_columns = {
+        "species",
+        "block_width_m",
+        "row_index",
+        "block_id",
+        "fold_id",
+        "label",
+        "cell_id",
+    }
+    block_columns = {
+        "species",
+        "block_width_m",
+        "fold_id",
+        "block_id",
+        "rows",
+        "positive_rows",
+        "negative_rows",
+    }
+    spatial_fold_artifacts = False
+    if assignment_columns <= set(assignments) and block_columns <= set(block_audit):
+        whole_blocks = assignments.groupby(
+            ["species", "block_width_m", "block_id"]
+        ).fold_id.nunique()
+        fold_classes = block_audit.groupby(
+            ["species", "block_width_m", "fold_id"]
+        )[["positive_rows", "negative_rows"]].sum()
+        spatial_fold_artifacts = bool(
+            set(assignments.species) == set(empirical.species)
+            and set(assignments.block_width_m.astype(int))
+            == {25_000, 50_000, 100_000}
+            and set(assignments.fold_id.astype(int)) == {0, 1, 2, 3, 4}
+            and whole_blocks.eq(1).all()
+            and fold_classes.positive_rows.gt(0).all()
+            and fold_classes.negative_rows.gt(0).all()
+        )
 
     gbif_valid = (
         isinstance(gbif.get("download_key"), str)
@@ -217,6 +290,9 @@ def build_reproducibility_audit(
         "empirical_arms_exact": empirical_arms_exact,
         "empirical_provenance_exact": empirical_provenance_exact,
         "empirical_folds_complete": empirical_folds_complete,
+        "linear_feature_basis": linear_feature_basis,
+        "stable_predictions": stable_predictions,
+        "spatial_fold_artifacts": spatial_fold_artifacts,
         "cleaning_audit_valid": cleaning_valid,
         "gbif_manifest_valid": gbif_valid,
         "gbif_timestamp_valid": timestamp_valid,
@@ -234,6 +310,9 @@ def build_reproducibility_audit(
         "configuration_hash": _configuration_hash(config),
         "checks": checks,
         "simulation_audit": simulation_audit,
+        "linear_feature_basis": linear_feature_basis,
+        "stable_predictions": stable_predictions,
+        "spatial_fold_artifacts": spatial_fold_artifacts,
         "expected_empirical_species": sorted(expected_species),
         "actual_empirical_species": sorted(actual_species),
         "excluded_taxon_scan": {"matches": excluded_matches},
