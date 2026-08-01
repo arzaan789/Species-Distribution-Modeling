@@ -34,6 +34,13 @@ PRIMARY_METRICS = (
     "response_curve_error",
     "top10_overlap",
 )
+STABILITY_COLUMNS = (
+    "max_cell_mass",
+    "effective_cell_count",
+    "log_intensity_range",
+    "lower_clip_cells",
+    "lower_clip_fraction",
+)
 
 
 def seed_for(study_seed: int, *parts: object) -> int:
@@ -243,7 +250,10 @@ def run_simulation(
                                     arm,
                                 ),
                             )
-                            prediction = model.predict_suitability(landscape)
+                            prediction_result = model.predict_with_diagnostics(
+                                landscape
+                            )
+                            prediction = prediction_result.suitability
                             evaluation_score = prediction[
                                 evaluation.cell_id.to_numpy(dtype=int)
                             ]
@@ -270,6 +280,23 @@ def run_simulation(
                                         else 0.0
                                     ),
                                     "source_distribution_distance": source_distance,
+                                    "feature_basis": prediction_result.feature_basis,
+                                    "max_cell_mass": prediction_result.max_cell_mass,
+                                    "effective_cell_count": (
+                                        prediction_result.effective_cell_count
+                                    ),
+                                    "log_intensity_range": (
+                                        prediction_result.log_intensity_range
+                                    ),
+                                    "lower_clip_cells": (
+                                        prediction_result.lower_clip_cells
+                                    ),
+                                    "lower_clip_fraction": (
+                                        prediction_result.lower_clip_fraction
+                                    ),
+                                    "solver_converged": (
+                                        prediction_result.solver_converged
+                                    ),
                                     **metrics,
                                 }
                             )
@@ -333,6 +360,28 @@ def audit_simulation(path: Path, config: StudyConfig) -> dict[str, object]:
         ["community_seed", "alignment", "bias_level", "species_id"]
     ).background_arm.nunique()
     complete_arms = bool(arm_counts.eq(len(config.background_arms)).all())
+    correct_basis = bool(
+        "feature_basis" in actual
+        and actual.feature_basis.eq("linear").all()
+    )
+    stability_columns_present = all(
+        column in actual for column in STABILITY_COLUMNS
+    )
+    stable_predictions = bool(
+        stability_columns_present
+        and np.isfinite(
+            actual.loc[:, STABILITY_COLUMNS].to_numpy(dtype=float)
+        ).all()
+        and actual.max_cell_mass.le(0.10).all()
+        and actual.effective_cell_count.ge(50.0).all()
+        and actual.lower_clip_fraction.between(
+            0.0,
+            1.0,
+            inclusive="both",
+        ).all()
+        and "solver_converged" in actual
+        and actual.solver_converged.eq(True).all()
+    )
     failure_path = result_path.parent / "simulation_failures.csv"
     failed = len(pd.read_csv(failure_path)) if failure_path.exists() else 0
     status = (
@@ -342,6 +391,8 @@ def audit_simulation(path: Path, config: StudyConfig) -> dict[str, object]:
         and duplicates == 0
         and finite
         and complete_arms
+        and correct_basis
+        and stable_predictions
         else "failed"
     )
     audit: dict[str, object] = {
@@ -354,6 +405,8 @@ def audit_simulation(path: Path, config: StudyConfig) -> dict[str, object]:
         "duplicates": duplicates,
         "finite_primary_metrics": finite,
         "complete_background_arms": complete_arms,
+        "linear_feature_basis": correct_basis,
+        "stable_predictions": stable_predictions,
         "missing_keys": missing_rows.to_dict(orient="records"),
         "unexpected_keys": unexpected_rows.to_dict(orient="records"),
         "configuration_hash": hashlib.sha256(

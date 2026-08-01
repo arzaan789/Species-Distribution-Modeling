@@ -115,6 +115,20 @@ def test_runner_resumes_without_duplicate_rows(
     assert not second.duplicated(list(RESULT_KEY_COLUMNS)).any()
     assert second.landscape_hash.nunique() == 1
     assert second.source_distribution_distance.between(0, 1).all()
+    required = {
+        "feature_basis",
+        "max_cell_mass",
+        "effective_cell_count",
+        "log_intensity_range",
+        "lower_clip_cells",
+        "lower_clip_fraction",
+        "solver_converged",
+    }
+    numeric = required - {"feature_basis", "solver_converged"}
+    assert required <= set(second)
+    assert set(second.feature_basis) == {"linear"}
+    assert np.isfinite(second.loc[:, list(numeric)]).all().all()
+    assert second.solver_converged.all()
 
 
 def test_audit_reports_exact_missing_fit_keys(
@@ -152,3 +166,20 @@ def test_audit_rejects_unexpected_fit_keys(
     assert audit["status"] == "failed"
     assert audit["unexpected"] == 1
     assert audit["unexpected_keys"][0]["species_id"] == "sp_999"
+
+
+def test_audit_rejects_a_numerically_collapsed_map(
+    tiny_config,
+    runner_landscape,
+    tmp_path: Path,
+) -> None:
+    path = run_simulation(tiny_config, runner_landscape, tmp_path)
+    rows = pd.read_parquet(path)
+    rows.loc[0, "max_cell_mass"] = 0.50
+    rows.loc[0, "effective_cell_count"] = 4.0
+    rows.to_parquet(path, index=False)
+
+    audit = audit_simulation(path, tiny_config)
+
+    assert audit["status"] == "failed"
+    assert audit["stable_predictions"] is False

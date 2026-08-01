@@ -44,6 +44,13 @@ def complete_tiny_run(
     rows["record_count"] = 100
     rows["niche_breadth"] = 1.0
     rows["source_distribution_distance"] = 0.4
+    rows["feature_basis"] = "linear"
+    rows["max_cell_mass"] = 0.01
+    rows["effective_cell_count"] = 100.0
+    rows["log_intensity_range"] = 4.0
+    rows["lower_clip_cells"] = 0
+    rows["lower_clip_fraction"] = 0.0
+    rows["solver_converged"] = True
     rows["unsupported_mass"] = np.where(
         rows.background_arm.eq("pm_tgb"),
         0.1,
