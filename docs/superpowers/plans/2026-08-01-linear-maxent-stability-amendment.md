@@ -21,6 +21,8 @@
 - Export row-level fold assignments and block/class counts for all four species and all three block widths.
 - Exclude bats from every acquisition, output, test, figure, and claim.
 - Implement each behavior test-first and commit only after the complete suite passes.
+- Freeze normalized-loss L2 regularization at `2.0`; select it only by the
+  predeclared stability diagnostics, never PM-TGB effect direction.
 
 ---
 
@@ -220,6 +222,122 @@ Expected: all tests pass.
 git add provenance_sdm/src/provenance_sdm/maxent.py provenance_sdm/tests/test_maxent.py
 git commit -m "fix: use stable linear MaxEnt feature basis"
 ```
+
+### Task 1A: Freeze normalized-loss regularization and run the full stability pilot
+
+**Files:**
+- Modify: `provenance_sdm/src/provenance_sdm/maxent.py`
+- Modify: `provenance_sdm/src/provenance_sdm/simulation_runner.py`
+- Modify: `provenance_sdm/src/provenance_sdm/empirical.py`
+- Test: `provenance_sdm/tests/test_simulation_runner.py`
+- Test: `provenance_sdm/tests/test_empirical.py`
+
+**Interfaces:**
+- Consumes: normalized class weights implemented by Task 1.
+- Produces: `PRIMARY_REGULARIZATION = 2.0` and result rows labelled
+  `model_regularization=2.0` from both production runners.
+
+- [ ] **Step 1: Write failing runner-label tests**
+
+Extend the tiny simulation and empirical result assertions:
+
+```python
+assert set(rows.model_regularization) == {2.0}
+```
+
+- [ ] **Step 2: Run focused tests and verify RED**
+
+```bash
+cd provenance_sdm
+.venv/bin/python -m pytest \
+  tests/test_simulation_runner.py::test_runner_resumes_without_duplicate_rows \
+  tests/test_empirical.py::test_empirical_arms_share_evaluation_rows_and_background_budget -q
+```
+
+Expected: both fail because `model_regularization` is absent.
+
+- [ ] **Step 3: Implement one shared frozen value**
+
+In `maxent.py` add:
+
+```python
+PRIMARY_REGULARIZATION = 2.0
+```
+
+Import it in both runners. Replace each hard-coded
+`regularization=1.0` call with:
+
+```python
+regularization=PRIMARY_REGULARIZATION
+```
+
+Add this field to every result row:
+
+```python
+"model_regularization": PRIMARY_REGULARIZATION,
+```
+
+- [ ] **Step 4: Run focused and complete tests**
+
+```bash
+cd provenance_sdm
+.venv/bin/python -m pytest \
+  tests/test_simulation_runner.py \
+  tests/test_empirical.py -q
+.venv/bin/python -m pytest -q
+```
+
+Expected: all tests pass.
+
+- [ ] **Step 5: Commit the frozen primary value**
+
+```bash
+git add \
+  provenance_sdm/src/provenance_sdm/maxent.py \
+  provenance_sdm/src/provenance_sdm/simulation_runner.py \
+  provenance_sdm/src/provenance_sdm/empirical.py \
+  provenance_sdm/tests/test_simulation_runner.py \
+  provenance_sdm/tests/test_empirical.py \
+  docs/superpowers/specs/2026-08-01-linear-maxent-stability-amendment-design.md \
+  docs/superpowers/plans/2026-08-01-linear-maxent-stability-amendment.md
+git commit -m "fix: freeze stable normalized-loss regularization"
+```
+
+- [ ] **Step 6: Preserve the invalidated normalized-loss value-1 checkpoint**
+
+Move `outputs/simulation_metrics.parquet` to the exact ignored path
+`outputs/diagnostic-linear-reg1-normalized-20260801/simulation_metrics.partial-3088.parquet`.
+Verify the primary result path is empty and the preserved file contains 3,088
+unique keys.
+
+- [ ] **Step 7: Run the complete one-community stability pilot**
+
+Run this exact script from `provenance_sdm/`:
+
+```python
+from dataclasses import replace
+from pathlib import Path
+
+from provenance_sdm.cli import _load_landscape
+from provenance_sdm.config import load_study_config
+from provenance_sdm.simulation_runner import audit_simulation, run_simulation
+
+config = load_study_config(Path("config/study.yaml"))
+pilot_output = Path("outputs/pilot-linear-reg2")
+pilot_config = replace(
+    config,
+    simulation=replace(config.simulation, n_communities=1),
+    output_dir=pilot_output,
+)
+landscape = _load_landscape(Path("outputs/gb_grid.parquet"), "EPSG:27700")
+path = run_simulation(pilot_config, landscape, pilot_output)
+report = audit_simulation(path, pilot_config)
+assert report["status"] == "passed", report
+assert report["completed"] == 4_800, report
+```
+
+Expected: 4,800 unique rows; zero unstable or unconverged maps; audit passed.
+If any gate condition fails, do not start production and return to diagnosis.
 
 ### Task 2: Persist and audit simulation stability
 

@@ -53,6 +53,13 @@ jointly contribute 0.5 loss mass and background rows jointly contribute 0.5.
 This prevents total record count from silently rescaling the fixed L2 penalty
 while retaining equal class influence.
 
+The frozen normalized-loss L2 regularization value will be `2.0`. Value `1.0`
+was rejected by the result-blind stability gate after two sparse-species maps
+assigned 10.05% and 10.21% mass to one cell. On those same fits, value `2.0`
+reduced maximum cell mass to 1.02% and 1.23% and increased effective cells from
+68/83 to 3,915/2,950. No PM-TGB effect metric was inspected to select the
+value.
+
 Virtual ecological truth will continue to include nonlinear niches. This
 intentional model misspecification applies equally to every background arm and
 tests whether background construction improves recovery under a simpler fitted
@@ -108,6 +115,11 @@ Implementation will be test-first. Regression tests will establish that:
    evaluation hashes.
 
 Focused tests and the complete suite must pass before either production rerun.
+Before the three-community production simulation, regularization `2.0` must
+also pass a complete 4,800-fit stability pilot containing one community, all
+three alignment levels, both bias levels, 200 species, and all four arms. The
+pilot must have zero maps above 10% maximum cell mass, below 50 effective
+cells, or with unconverged solvers.
 After reruns, formal simulation, empirical, and reproducibility audits must pass
 before figures, tables, or manuscript claims are regenerated.
 
