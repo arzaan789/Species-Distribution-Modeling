@@ -284,6 +284,31 @@ def test_empirical_arms_share_evaluation_rows_and_background_budget(
     assert budgets.eq(1).all()
     assert set(rows.background_arm) == {"uniform", "conventional_tgb", "pm_tgb"}
     assert set(rows.provenance_level) == {"dataset", "publisher"}
+    required = {
+        "feature_basis",
+        "max_cell_mass",
+        "effective_cell_count",
+        "log_intensity_range",
+        "lower_clip_cells",
+        "lower_clip_fraction",
+        "solver_converged",
+    }
+    assert required <= set(rows)
+    assert rows.feature_basis.eq("linear").all()
+    assert rows.solver_converged.all()
+
+    assignments = pd.read_parquet(
+        tmp_path / "spatial_fold_assignments.parquet"
+    )
+    block_audit = pd.read_csv(tmp_path / "spatial_block_class_audit.csv")
+    assert set(assignments.species) == {"focal"}
+    assert set(assignments.block_width_m) == {50_000}
+    assert assignments.groupby("block_id").fold_id.nunique().eq(1).all()
+    fold_counts = block_audit.groupby("fold_id")[
+        ["positive_rows", "negative_rows"]
+    ].sum()
+    assert fold_counts.positive_rows.gt(0).all()
+    assert fold_counts.negative_rows.gt(0).all()
 
 
 def test_empirical_comparison_exports_common_map_metrics(

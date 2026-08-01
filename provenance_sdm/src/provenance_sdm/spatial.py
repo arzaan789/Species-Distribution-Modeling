@@ -20,6 +20,62 @@ class SpatialFold:
     test_row_indices: tuple[int, ...]
 
 
+def _block_ids(records: pd.DataFrame, width_m: int) -> np.ndarray:
+    coordinates = records.loc[:, ["x", "y"]].to_numpy(dtype=float)
+    block_x = np.floor(
+        (coordinates[:, 0] - coordinates[:, 0].min()) / width_m
+    )
+    block_y = np.floor(
+        (coordinates[:, 1] - coordinates[:, 1].min()) / width_m
+    )
+    return np.array(
+        [
+            f"{int(left)}:{int(right)}"
+            for left, right in zip(block_x, block_y, strict=True)
+        ]
+    )
+
+
+def spatial_assignment_frames(
+    records: pd.DataFrame,
+    width_m: int,
+    folds: tuple[SpatialFold, ...],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return row-level fold assignments and block/class count audits."""
+
+    if "label" not in records:
+        raise ValueError("spatial assignment audit requires a label column")
+    block_ids = _block_ids(records, width_m)
+    fold_by_index = {
+        int(row_index): fold.fold_id
+        for fold in folds
+        for row_index in fold.test_row_indices
+    }
+    if set(fold_by_index) != set(records.index.astype(int)):
+        raise ValueError("test folds do not cover every spatial row exactly")
+    assignments = pd.DataFrame(
+        {
+            "row_index": records.index.to_numpy(dtype=int),
+            "block_id": block_ids,
+            "fold_id": [
+                fold_by_index[int(index)] for index in records.index
+            ],
+            "label": records.label.to_numpy(dtype=np.int8),
+        }
+    )
+    if assignments.groupby("block_id").fold_id.nunique().ne(1).any():
+        raise ValueError("a projected block spans multiple test folds")
+    block_audit = (
+        assignments.groupby(["fold_id", "block_id"], as_index=False)
+        .agg(
+            rows=("row_index", "size"),
+            positive_rows=("label", lambda value: int((value == 1).sum())),
+            negative_rows=("label", lambda value: int((value == 0).sum())),
+        )
+    )
+    return assignments, block_audit
+
+
 def projected_block_folds(
     records: pd.DataFrame,
     width_m: int,
@@ -39,11 +95,7 @@ def projected_block_folds(
     if not np.isfinite(coordinates).all():
         raise ValueError("projected x/y coordinates must be finite")
 
-    block_x = np.floor((coordinates[:, 0] - coordinates[:, 0].min()) / width_m)
-    block_y = np.floor((coordinates[:, 1] - coordinates[:, 1].min()) / width_m)
-    block_ids = np.array(
-        [f"{int(left)}:{int(right)}" for left, right in zip(block_x, block_y, strict=True)]
-    )
+    block_ids = _block_ids(records, width_m)
     unique_blocks = np.unique(block_ids)
     if len(unique_blocks) < n_folds:
         raise ValueError("fewer projected blocks than requested folds")

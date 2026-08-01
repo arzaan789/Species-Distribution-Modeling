@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from provenance_sdm.spatial import projected_block_folds
+from provenance_sdm.spatial import (
+    projected_block_folds,
+    spatial_assignment_frames,
+)
 
 
 @pytest.fixture
@@ -42,6 +45,28 @@ def test_block_assignment_is_deterministic(projected_occurrences) -> None:
     second = projected_block_folds(projected_occurrences, 50_000, 5, seed=8)
 
     assert first == second
+
+
+def test_assignment_frames_cover_rows_and_keep_blocks_whole(
+    projected_occurrences,
+) -> None:
+    folds = projected_block_folds(projected_occurrences, 50_000, 5, seed=8)
+
+    assignments, block_audit = spatial_assignment_frames(
+        projected_occurrences,
+        50_000,
+        folds,
+    )
+
+    assert len(assignments) == len(projected_occurrences)
+    assert assignments.row_index.is_unique
+    assert assignments.fold_id.nunique() == 5
+    assert assignments.groupby("block_id").fold_id.nunique().eq(1).all()
+    fold_counts = block_audit.groupby("fold_id")[
+        ["positive_rows", "negative_rows"]
+    ].sum()
+    assert fold_counts.positive_rows.gt(0).all()
+    assert fold_counts.negative_rows.gt(0).all()
 
 
 @pytest.mark.parametrize("width_m", [25_000, 50_000, 100_000])

@@ -21,7 +21,10 @@ from provenance_sdm.maxent import fit_maxent
 from provenance_sdm.metrics import continuous_boyce, top_quantile_overlap
 from provenance_sdm.provenance import pm_tgb_weights, source_distribution_distance
 from provenance_sdm.simulation_runner import seed_for
-from provenance_sdm.spatial import projected_block_folds
+from provenance_sdm.spatial import (
+    projected_block_folds,
+    spatial_assignment_frames,
+)
 
 
 REQUIRED_COLUMNS = {
@@ -386,6 +389,8 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
     result_rows: list[dict[str, object]] = []
     map_sums: dict[tuple[str, str], np.ndarray] = {}
     map_counts: dict[tuple[str, str], int] = {}
+    assignment_tables: list[pd.DataFrame] = []
+    block_audit_tables: list[pd.DataFrame] = []
 
     for species in inputs.config.empirical_species:
         try:
@@ -429,6 +434,20 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                     width,
                 ),
             )
+            assignments, block_audit = spatial_assignment_frames(
+                evaluation_grid,
+                width,
+                folds,
+            )
+            assignments.insert(0, "species", species.key)
+            assignments.insert(1, "block_width_m", width)
+            assignments["cell_id"] = evaluation_grid.cell_id.to_numpy(
+                dtype=np.int64
+            )
+            block_audit.insert(0, "species", species.key)
+            block_audit.insert(1, "block_width_m", width)
+            assignment_tables.append(assignments)
+            block_audit_tables.append(block_audit)
             for fold in folds:
                 train_cells = set(
                     evaluation_grid.loc[list(fold.train_row_indices), "cell_id"].astype(int)
@@ -484,7 +503,7 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                             provenance_level,
                         ),
                     )
-                    predictions: dict[str, np.ndarray] = {}
+                    prediction_results = {}
                     for arm, background in backgrounds.items():
                         model = fit_maxent(
                             train_presence,
@@ -501,9 +520,13 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                                 arm,
                             ),
                         )
-                        predictions[arm] = model.predict_suitability(landscape)
+                        prediction_results[arm] = (
+                            model.predict_with_diagnostics(landscape)
+                        )
 
-                    baseline = predictions["conventional_tgb"]
+                    baseline = prediction_results[
+                        "conventional_tgb"
+                    ].suitability
                     held_out_ids = held_out_presence.cell_id.map(
                         position_by_cell
                     ).to_numpy(dtype=int)
@@ -511,7 +534,8 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                         landscape_cells.cell_id.isin(test_cells),
                         "cell_id",
                     ].map(position_by_cell).to_numpy(dtype=int)
-                    for arm, prediction in predictions.items():
+                    for arm, prediction_result in prediction_results.items():
+                        prediction = prediction_result.suitability
                         evaluation_score = prediction[evaluation_scores_index]
                         boyce = continuous_boyce(
                             prediction[held_out_ids],
@@ -558,6 +582,27 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
                                 "unsupported_mass": (
                                     unsupported if arm == "pm_tgb" else 0.0
                                 ),
+                                "feature_basis": (
+                                    prediction_result.feature_basis
+                                ),
+                                "max_cell_mass": (
+                                    prediction_result.max_cell_mass
+                                ),
+                                "effective_cell_count": (
+                                    prediction_result.effective_cell_count
+                                ),
+                                "log_intensity_range": (
+                                    prediction_result.log_intensity_range
+                                ),
+                                "lower_clip_cells": (
+                                    prediction_result.lower_clip_cells
+                                ),
+                                "lower_clip_fraction": (
+                                    prediction_result.lower_clip_fraction
+                                ),
+                                "solver_converged": (
+                                    prediction_result.solver_converged
+                                ),
                             }
                         )
                         if width == 50_000 and provenance_level == "dataset":
@@ -580,6 +625,14 @@ def run_empirical(inputs: EmpiricalInputs, output_dir: Path) -> Path:
         maps.append(frame)
     pd.concat(maps, ignore_index=True).to_parquet(
         destination / "empirical_maps.parquet",
+        index=False,
+    )
+    pd.concat(assignment_tables, ignore_index=True).to_parquet(
+        destination / "spatial_fold_assignments.parquet",
+        index=False,
+    )
+    pd.concat(block_audit_tables, ignore_index=True).to_csv(
+        destination / "spatial_block_class_audit.csv",
         index=False,
     )
     return result_path
