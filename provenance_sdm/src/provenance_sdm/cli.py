@@ -178,6 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
     flexible_audit.add_argument("--config", type=Path, required=True)
     flexible_audit.add_argument("--output", type=Path, required=True)
     flexible_audit.add_argument("--report", type=Path, required=True)
+    mechanism_figures = commands.add_parser("figures-mechanism")
+    mechanism_figures.add_argument("--primary", type=Path, required=True)
+    mechanism_figures.add_argument("--diagnostics", type=Path, required=True)
+    mechanism_figures.add_argument("--latent", type=Path, required=True)
+    mechanism_figures.add_argument("--output", type=Path, required=True)
+    mechanism_figures.add_argument("--bootstrap-draws", type=int, default=2_000)
     return parser
 
 
@@ -403,6 +409,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         write_manifest(report, arguments.report, allow_replace=True)
         return 0 if report["status"] == "passed" else 1
+    if arguments.command == "figures-mechanism":
+        from provenance_sdm.figures import write_mechanism_figures
+
+        write_mechanism_figures(
+            pd.read_parquet(arguments.primary),
+            pd.read_parquet(arguments.diagnostics),
+            pd.read_parquet(arguments.latent),
+            arguments.output,
+            n_boot=arguments.bootstrap_draws,
+        )
+        return 0
     metrics = pd.read_parquet(arguments.results)
     arguments.output.mkdir(parents=True, exist_ok=True)
     if arguments.command == "summarize-simulation":

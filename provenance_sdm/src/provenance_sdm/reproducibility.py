@@ -14,14 +14,24 @@ import pandas as pd
 from provenance_sdm.config import StudyConfig
 from provenance_sdm.manifests import sha256_file
 from provenance_sdm.maxent import PRIMARY_REGULARIZATION
+from provenance_sdm.flexible_runner import audit_flexible_sensitivity
+from provenance_sdm.mechanism_runner import audit_mechanism
 from provenance_sdm.simulation_runner import PRIMARY_METRICS, audit_simulation
-from provenance_sdm.summaries import hierarchical_bootstrap
+from provenance_sdm.summaries import (
+    diagnostic_arm_effects,
+    hierarchical_bootstrap,
+    hierarchical_effect_bootstrap,
+    mechanism_correlations,
+    oriented_paired_effects,
+)
 
 
 EXCLUDED_TAXON_PATTERN = re.compile(r"\bbat\w*\b|pipistrell\w*", re.IGNORECASE)
 SUBMISSION_FIGURES = (
     "simulation_workflow.png",
     "paired_truth_contrasts.png",
+    "source_composition_mechanism.png",
+    "latent_mixture_contrasts.png",
     "empirical_source_contrasts.png",
     "empirical_map_contrast.png",
 )
@@ -33,6 +43,10 @@ CORE_OUTPUTS = (
     "occurrence_cleaning_audit.csv",
     "gbif_archive.json",
     "gb_grid.manifest.json",
+    "mechanism_diagnostics.parquet",
+    "latent_mixture_metrics.parquet",
+    "flexible_pilot.parquet",
+    "flexible_gate.json",
 )
 EXPECTED_CLEANING_STAGES = (
     "input",
@@ -59,11 +73,13 @@ def _required_path(path: Path) -> Path:
 def _scan_excluded_taxa(
     empirical: pd.DataFrame,
     gbif_manifest: dict[str, object],
+    *extension_frames: pd.DataFrame,
 ) -> list[dict[str, str]]:
     values = []
-    for column in ("species", "scientific_name"):
-        if column in empirical:
-            values.extend(empirical[column].dropna().astype(str).unique())
+    for frame in (empirical, *extension_frames):
+        for column in ("species", "scientific_name", "species_id"):
+            if column in frame:
+                values.extend(frame[column].dropna().astype(str).unique())
     values.append(json.dumps(gbif_manifest, sort_keys=True))
     matches = []
     for value in values:
@@ -86,6 +102,15 @@ def build_reproducibility_audit(
     }
     simulation = pd.read_parquet(paths["simulation_metrics.parquet"])
     empirical = pd.read_parquet(paths["empirical_metrics.parquet"])
+    diagnostics = pd.read_parquet(paths["mechanism_diagnostics.parquet"])
+    latent = pd.read_parquet(paths["latent_mixture_metrics.parquet"])
+    flexible_pilot = pd.read_parquet(paths["flexible_pilot.parquet"])
+    flexible_path = output / "flexible_sensitivity_metrics.parquet"
+    flexible = (
+        pd.read_parquet(flexible_path)
+        if flexible_path.is_file()
+        else pd.DataFrame()
+    )
     assignments = pd.read_parquet(paths["spatial_fold_assignments.parquet"])
     block_audit = pd.read_csv(paths["spatial_block_class_audit.csv"])
     cleaning = pd.read_csv(paths["occurrence_cleaning_audit.csv"])
@@ -102,6 +127,8 @@ def build_reproducibility_audit(
         ["community_seed", "alignment", "bias_level", "species_id"]
     ).background_cells.nunique()
     simulation_budgets_paired = bool(budget_groups.eq(1).all())
+    mechanism_audit = audit_mechanism(output, config)
+    flexible_audit = audit_flexible_sensitivity(output, config)
 
     expected_species = {
         species.scientific_name
@@ -267,18 +294,42 @@ def build_reproducibility_audit(
         check["exists"] and check["bytes"] > 1_000 and check["png_signature"]
         for check in figure_checks.values()
     )
-    excluded_matches = _scan_excluded_taxa(empirical, gbif)
+    excluded_matches = _scan_excluded_taxa(
+        empirical,
+        gbif,
+        diagnostics,
+        latent,
+        flexible_pilot,
+        flexible,
+    )
 
     gate_path = output / "deepmaxent_gate.json"
     if not gate_path.is_file():
         gate_path = study_root / "manifests" / "deepmaxent_gate.json"
     if gate_path.is_file():
         gate = json.loads(gate_path.read_text(encoding="utf-8"))
-        deepmaxent = {
-            "status": "included" if gate.get("include") is True else "excluded",
-            "reasons": gate.get("reasons", []),
-            "gate_sha256": sha256_file(gate_path),
-        }
+        if gate.get("include") is True:
+            complete_metrics = output / "deepmaxent_metrics.parquet"
+            complete_audit = output / "deepmaxent_audit.json"
+            complete = False
+            if complete_metrics.is_file() and complete_audit.is_file():
+                deepmaxent_audit = json.loads(
+                    complete_audit.read_text(encoding="utf-8")
+                )
+                complete = deepmaxent_audit.get("status") == "passed"
+            deepmaxent = {
+                "status": (
+                    "included" if complete else "gate_passed_no_complete_run"
+                ),
+                "reasons": gate.get("reasons", []),
+                "gate_sha256": sha256_file(gate_path),
+            }
+        else:
+            deepmaxent = {
+                "status": "excluded",
+                "reasons": gate.get("reasons", []),
+                "gate_sha256": sha256_file(gate_path),
+            }
     else:
         deepmaxent = {
             "status": "not_evaluated",
@@ -307,17 +358,23 @@ def build_reproducibility_audit(
         "grid_manifest_valid": grid_valid,
         "submission_figures_valid": figures_valid,
         "excluded_taxa_absent": not excluded_matches,
+        "mechanism_complete": mechanism_audit["status"] == "passed",
+        "flexible_evidence_valid": flexible_audit["status"] == "passed",
     }
     artifact_hashes = {
         name: sha256_file(path)
         for name, path in paths.items()
     }
+    if flexible_path.is_file():
+        artifact_hashes[flexible_path.name] = sha256_file(flexible_path)
     return {
         "core_status": "passed" if all(checks.values()) else "failed",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "configuration_hash": _configuration_hash(config),
         "checks": checks,
         "simulation_audit": simulation_audit,
+        "mechanism_audit": mechanism_audit,
+        "flexible_audit": flexible_audit,
         "linear_feature_basis": linear_feature_basis,
         "stable_predictions": stable_predictions,
         "spatial_fold_artifacts": spatial_fold_artifacts,
@@ -347,7 +404,7 @@ def export_manuscript(
     *,
     n_boot: int = 2_000,
 ) -> tuple[Path, ...]:
-    """Export the four predeclared submission tables from tidy artifacts."""
+    """Export the six predeclared submission tables from tidy artifacts."""
 
     study_root = Path(root)
     source = study_root / "outputs"
@@ -358,8 +415,18 @@ def export_manuscript(
     cleaning_path = _required_path(source / "occurrence_cleaning_audit.csv")
     gbif_path = _required_path(source / "gbif_archive.json")
     grid_path = _required_path(source / "gb_grid.manifest.json")
+    diagnostics_path = _required_path(source / "mechanism_diagnostics.parquet")
+    latent_path = _required_path(source / "latent_mixture_metrics.parquet")
+    pilot_path = _required_path(source / "flexible_pilot.parquet")
+    flexible_gate_path = _required_path(source / "flexible_gate.json")
     simulation = pd.read_parquet(simulation_path)
     empirical = pd.read_parquet(empirical_path)
+    diagnostics = pd.read_parquet(diagnostics_path)
+    latent = pd.read_parquet(latent_path)
+    flexible_gate = json.loads(
+        flexible_gate_path.read_text(encoding="utf-8")
+    )
+    flexible_path = source / "flexible_sensitivity_metrics.parquet"
     configuration_hash = _configuration_hash(config)
 
     design = pd.DataFrame(
@@ -434,14 +501,24 @@ def export_manuscript(
     table_3 = destination / "table_3_empirical_composition_metrics.csv"
     composition.to_csv(table_3, index=False)
 
-    manifest_rows = []
-    for path, method in (
+    manifest_inputs = [
         (simulation_path, "simulation metrics"),
         (empirical_path, "empirical metrics"),
         (cleaning_path, "occurrence cleaning audit"),
         (gbif_path, "GBIF DOI archive manifest"),
         (grid_path, "projected predictor-grid manifest"),
-    ):
+        (diagnostics_path, "known-process composition diagnostics"),
+        (latent_path, "latent-mixture diagnostic metrics"),
+        (pilot_path, "result-blind flexible-model stability pilot"),
+        (flexible_gate_path, "flexible-model inclusion gate"),
+    ]
+    if flexible_gate.get("include") is True:
+        flexible_path = _required_path(flexible_path)
+        manifest_inputs.append(
+            (flexible_path, "clamped polynomial sensitivity metrics")
+        )
+    manifest_rows = []
+    for path, method in manifest_inputs:
         manifest_rows.append(
             {
                 "artifact": path.name,
@@ -457,4 +534,83 @@ def export_manuscript(
         )
     table_4 = destination / "table_4_reproducibility_manifest.csv"
     pd.DataFrame(manifest_rows).to_csv(table_4, index=False)
-    return table_1, table_2, table_3, table_4
+
+    correlations = mechanism_correlations(
+        simulation,
+        diagnostics,
+        n_boot=n_boot,
+        seed=config.simulation.seed,
+    )
+    correlations["section"] = "ecological-overlap distortion association"
+    correlations["contrast"] = "distortion versus oriented PM-TGB effect"
+    latent_effects = diagnostic_arm_effects(simulation, latent)
+    latent_summary = hierarchical_effect_bootstrap(
+        latent_effects,
+        n_boot=n_boot,
+        seed=config.simulation.seed,
+    )
+    latent_summary["section"] = "latent-mixture diagnostic contrast"
+    latent_summary["method"] = "community-species hierarchical bootstrap"
+    mechanism_table = pd.concat(
+        [correlations, latent_summary],
+        ignore_index=True,
+        sort=False,
+    )
+    mechanism_table["status"] = "diagnostic"
+    mechanism_table["sample_count"] = mechanism_table.n_pairs
+    mechanism_table["units"] = "metric-oriented association or effect"
+    mechanism_table["configuration_hash"] = configuration_hash
+    mechanism_hash_material = "".join(
+        sha256_file(path)
+        for path in (simulation_path, diagnostics_path, latent_path)
+    )
+    mechanism_table["input_hash"] = hashlib.sha256(
+        mechanism_hash_material.encode("utf-8")
+    ).hexdigest()
+    table_5 = destination / "table_5_mechanism.csv"
+    mechanism_table.to_csv(table_5, index=False)
+
+    if flexible_gate.get("include") is True:
+        flexible = pd.read_parquet(flexible_path)
+        flexible_effects = oriented_paired_effects(flexible)
+        flexible_table = hierarchical_effect_bootstrap(
+            flexible_effects,
+            n_boot=n_boot,
+            seed=config.simulation.seed,
+        )
+        flexible_table["selected_regularization"] = float(
+            flexible_gate["regularization"]
+        )
+        flexible_table["status"] = "sensitivity"
+        flexible_table["sample_count"] = flexible_table.n_pairs
+        flexible_table["units"] = "metric-oriented effect"
+        flexible_table["method"] = "clamped polynomial paired sensitivity"
+        flexible_table["input_hash"] = sha256_file(flexible_path)
+    else:
+        flexible_table = pd.DataFrame(
+            [
+                {
+                    "metric": "not run",
+                    "contrast": "pm_tgb_minus_conventional_tgb",
+                    "estimate": np.nan,
+                    "lower": np.nan,
+                    "upper": np.nan,
+                    "n_pairs": 0,
+                    "selected_regularization": np.nan,
+                    "status": "excluded by result-blind stability gate",
+                    "sample_count": 0,
+                    "units": "model fits",
+                    "method": str(flexible_gate.get("reason", "excluded")),
+                    "input_hash": hashlib.sha256(
+                        (
+                            sha256_file(pilot_path)
+                            + sha256_file(flexible_gate_path)
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                }
+            ]
+        )
+    flexible_table["configuration_hash"] = configuration_hash
+    table_6 = destination / "table_6_flexible_sensitivity.csv"
+    flexible_table.to_csv(table_6, index=False)
+    return table_1, table_2, table_3, table_4, table_5, table_6

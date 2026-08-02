@@ -33,6 +33,7 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "flexible-pilot" in output
     assert "run-flexible" in output
     assert "audit-flexible" in output
+    assert "figures-mechanism" in output
 
 
 def test_mechanism_audit_requires_a_report_path(capsys) -> None:
@@ -75,3 +76,23 @@ def test_clean_gbif_requires_the_saved_request_manifest(capsys) -> None:
 
     assert exc.value.code == 2
     assert "--request" in capsys.readouterr().err
+
+
+def test_mechanism_figures_require_all_three_tidy_inputs(capsys) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(
+            [
+                "figures-mechanism",
+                "--primary",
+                "primary.parquet",
+                "--diagnostics",
+                "diagnostics.parquet",
+                "--output",
+                "figures",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert "--latent" in capsys.readouterr().err

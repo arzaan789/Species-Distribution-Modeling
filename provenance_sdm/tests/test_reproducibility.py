@@ -12,6 +12,8 @@ from provenance_sdm.reproducibility import (
     build_reproducibility_audit,
     export_manuscript,
 )
+from provenance_sdm.flexible_runner import expected_flexible_keys
+from provenance_sdm.mechanism_runner import expected_mechanism_keys
 from provenance_sdm.simulation_runner import (
     PRIMARY_METRICS,
     expected_simulation_keys,
@@ -193,10 +195,103 @@ def complete_tiny_run(
     for name in (
         "simulation_workflow.png",
         "paired_truth_contrasts.png",
+        "source_composition_mechanism.png",
+        "latent_mixture_contrasts.png",
         "empirical_source_contrasts.png",
         "empirical_map_contrast.png",
     ):
         (figures / name).write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * 2_000)
+
+    mechanism = expected_mechanism_keys(config)
+    mechanism["record_count"] = 100
+    mechanism["niche_breadth"] = 1.0
+    mechanism["source_distribution_distance"] = [0.2, 0.6]
+    mechanism["ecological_overlap_tv"] = [0.1, 0.5]
+    mechanism["finite_record_tv"] = [0.02, 0.04]
+    mechanism["total_composition_tv"] = [0.11, 0.52]
+    mechanism["landscape_hash"] = "landscape-hash"
+    mechanism.to_parquet(
+        output / "mechanism_diagnostics.parquet",
+        index=False,
+    )
+    latent = mechanism.loc[
+        :,
+        ["community_seed", "alignment", "bias_level", "species_id"],
+    ].copy()
+    latent["background_arm"] = "latent_mixture_tgb"
+    for metric in PRIMARY_METRICS:
+        latent[metric] = 0.5
+    latent["record_count"] = 100
+    latent["niche_breadth"] = 1.0
+    latent["background_cells"] = 10
+    latent["unsupported_mass"] = 0.0
+    latent["landscape_hash"] = "landscape-hash"
+    latent["evaluation_hash"] = "c" * 64
+    latent["feature_basis"] = "linear"
+    latent["model_regularization"] = 2.0
+    latent["max_cell_mass"] = 0.01
+    latent["effective_cell_count"] = 100.0
+    latent["log_intensity_range"] = 4.0
+    latent["lower_clip_cells"] = 0
+    latent["lower_clip_fraction"] = 0.0
+    latent["solver_converged"] = True
+    latent.to_parquet(output / "latent_mixture_metrics.parquet", index=False)
+
+    flexible_keys = expected_flexible_keys(config, community_indices=(0,))
+    pilot = flexible_keys.copy()
+    pilot["model_regularization"] = 10.0
+    pilot["background_cells"] = 10
+    pilot["landscape_hash"] = "landscape-hash"
+    pilot["feature_basis"] = "clamped_linear_quadratic_interactions"
+    pilot["fit_succeeded"] = True
+    pilot["max_cell_mass"] = 0.01
+    pilot["effective_cell_count"] = 100.0
+    pilot["log_intensity_range"] = 4.0
+    pilot["lower_clip_cells"] = 0
+    pilot["lower_clip_fraction"] = 0.0
+    pilot["solver_converged"] = True
+    pilot["failure_type"] = None
+    pilot["failure_message"] = None
+    pilot.to_parquet(output / "flexible_pilot.parquet", index=False)
+    (output / "flexible_gate.json").write_text(
+        json.dumps(
+            {
+                "include": True,
+                "regularization": 10.0,
+                "reason": "smallest fully stable candidate",
+                "regularizations": [10.0],
+                "tested_regularizations": [10.0],
+                "expected_rows_per_candidate": len(flexible_keys),
+                "landscape_hash": "landscape-hash",
+                "feature_basis": "clamped_linear_quadratic_interactions",
+            }
+        ),
+        encoding="utf-8",
+    )
+    flexible = flexible_keys.copy()
+    for metric in PRIMARY_METRICS:
+        flexible[metric] = 0.5
+    flexible["record_count"] = 100
+    flexible["niche_breadth"] = 1.0
+    flexible["background_cells"] = 10
+    flexible["source_distribution_distance"] = 0.4
+    flexible["unsupported_mass"] = np.where(
+        flexible.background_arm.eq("pm_tgb"), 0.1, 0.0
+    )
+    flexible["landscape_hash"] = "landscape-hash"
+    flexible["evaluation_hash"] = "d" * 64
+    flexible["feature_basis"] = "clamped_linear_quadratic_interactions"
+    flexible["model_regularization"] = 10.0
+    flexible["max_cell_mass"] = 0.01
+    flexible["effective_cell_count"] = 100.0
+    flexible["log_intensity_range"] = 4.0
+    flexible["lower_clip_cells"] = 0
+    flexible["lower_clip_fraction"] = 0.0
+    flexible["solver_converged"] = True
+    flexible.to_parquet(
+        output / "flexible_sensitivity_metrics.parquet",
+        index=False,
+    )
     return config
 
 
@@ -218,11 +313,12 @@ def test_bat_tokens_are_absent_from_submission_artifacts(
 
     assert audit["core_status"] == "passed"
     assert audit["excluded_taxon_scan"]["matches"] == []
-    assert audit["deepmaxent"]["status"] == "included"
+    assert audit["deepmaxent"]["status"] == "gate_passed_no_complete_run"
+    assert "flexible_sensitivity_metrics.parquet" in audit["artifact_hashes"]
     json.dumps(audit)
 
 
-def test_manuscript_export_writes_four_auditable_tables(
+def test_manuscript_export_writes_six_auditable_tables(
     tmp_path: Path,
     study_config,
 ) -> None:
@@ -235,11 +331,22 @@ def test_manuscript_export_writes_four_auditable_tables(
         n_boot=20,
     )
 
-    assert len(paths) == 4
+    assert len(paths) == 6
+    assert {path.name for path in paths} >= {
+        "table_5_mechanism.csv",
+        "table_6_flexible_sensitivity.csv",
+    }
     assert all(path.is_file() for path in paths)
     for path in paths:
         table = pd.read_csv(path)
         assert {"status", "sample_count", "units", "method"} <= set(table)
+    manifest = pd.read_csv(
+        tmp_path
+        / "submission"
+        / "tables"
+        / "table_4_reproducibility_manifest.csv"
+    )
+    assert "flexible_sensitivity_metrics.parquet" in set(manifest.artifact)
 
 
 def test_reproducibility_audit_rejects_stale_nonlinear_results(
@@ -272,3 +379,34 @@ def test_reproducibility_audit_rejects_stale_regularization(
 
     assert audit["core_status"] == "failed"
     assert audit["checks"]["primary_regularization"] is False
+
+
+def test_reproducibility_audit_rejects_tampered_mechanism_artifact(
+    tmp_path: Path,
+    study_config,
+) -> None:
+    config = complete_tiny_run(tmp_path, study_config)
+    path = tmp_path / "outputs" / "mechanism_diagnostics.parquet"
+    rows = pd.read_parquet(path).iloc[:-1]
+    rows.to_parquet(path, index=False)
+
+    audit = build_reproducibility_audit(tmp_path, config)
+
+    assert audit["core_status"] == "failed"
+    assert audit["checks"]["mechanism_complete"] is False
+
+
+def test_excluded_taxon_scan_includes_extension_species_labels(
+    tmp_path: Path,
+    study_config,
+) -> None:
+    config = complete_tiny_run(tmp_path, study_config)
+    path = tmp_path / "outputs" / "mechanism_diagnostics.parquet"
+    rows = pd.read_parquet(path)
+    rows.loc[0, "species_id"] = "bat_species"
+    rows.to_parquet(path, index=False)
+
+    audit = build_reproducibility_audit(tmp_path, config)
+
+    assert audit["checks"]["excluded_taxa_absent"] is False
+    assert audit["excluded_taxon_scan"]["matches"]

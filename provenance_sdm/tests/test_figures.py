@@ -3,8 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
-from provenance_sdm.figures import write_empirical_figures, write_simulation_figures
+from provenance_sdm.figures import (
+    empirical_map_difference,
+    write_empirical_figures,
+    write_mechanism_figures,
+    write_simulation_figures,
+)
 
 
 def figure_metrics() -> pd.DataFrame:
@@ -43,7 +49,10 @@ def figure_metrics() -> pd.DataFrame:
 def test_simulation_figures_are_nonempty_neutral_pngs(tmp_path: Path) -> None:
     paths = write_simulation_figures(figure_metrics(), tmp_path)
 
-    assert len(paths) == 3
+    assert {path.name for path in paths} == {
+        "simulation_workflow.png",
+        "paired_truth_contrasts.png",
+    }
     assert all(path.suffix == ".png" for path in paths)
     assert all(path.stat().st_size > 1_000 for path in paths)
     assert all(
@@ -91,3 +100,62 @@ def test_empirical_figures_export_source_and_map_panels(tmp_path: Path) -> None:
 
     assert len(paths) == 2
     assert all(path.stat().st_size > 1_000 for path in paths)
+
+
+def test_mechanism_figures_export_distortion_and_latent_contrasts(
+    tmp_path: Path,
+) -> None:
+    primary = figure_metrics()
+    pairs = primary.loc[
+        :, ["community_seed", "alignment", "bias_level", "species_id"]
+    ].drop_duplicates()
+    pairs["ecological_overlap_tv"] = (
+        pairs.species_id.str.extract(r"(\d+)$")[0].astype(int) + 1
+    ) / 10
+    conventional = primary.query(
+        "background_arm == 'conventional_tgb'"
+    ).copy()
+    latent = conventional.assign(background_arm="latent_mixture_tgb")
+    latent["suitability_spearman"] += 0.03
+
+    paths = write_mechanism_figures(
+        primary,
+        pairs,
+        latent,
+        tmp_path,
+        n_boot=20,
+        seed=4,
+    )
+
+    assert {path.name for path in paths} == {
+        "source_composition_mechanism.png",
+        "latent_mixture_contrasts.png",
+    }
+    assert all(path.stat().st_size > 1_000 for path in paths)
+
+
+def test_empirical_map_difference_selects_first_species_and_scales_mass() -> None:
+    rows = []
+    for species in ("zeta_species", "alpha_species"):
+        for arm, values in (
+            ("conventional_tgb", (0.6, 0.4)),
+            ("pm_tgb", (0.5, 0.5)),
+        ):
+            for cell_id, value in enumerate(values):
+                rows.append(
+                    {
+                        "cell_id": cell_id,
+                        "x": cell_id,
+                        "y": 0,
+                        "species": species,
+                        "background_arm": arm,
+                        "predicted_suitability": value,
+                    }
+                )
+
+    difference = empirical_map_difference(pd.DataFrame(rows))
+
+    assert set(difference.species) == {"alpha_species"}
+    assert difference.difference_per_million.tolist() == pytest.approx(
+        [-100_000, 100_000]
+    )
