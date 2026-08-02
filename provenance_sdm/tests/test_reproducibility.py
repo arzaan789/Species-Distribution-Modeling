@@ -219,6 +219,7 @@ def test_bat_tokens_are_absent_from_submission_artifacts(
     assert audit["core_status"] == "passed"
     assert audit["excluded_taxon_scan"]["matches"] == []
     assert audit["deepmaxent"]["status"] == "included"
+    json.dumps(audit)
 
 
 def test_manuscript_export_writes_four_auditable_tables(

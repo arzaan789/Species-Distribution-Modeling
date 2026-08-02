@@ -236,7 +236,7 @@ def build_reproducibility_audit(
         timestamp_valid = retrieved.tzinfo is not None
     except (KeyError, TypeError, ValueError):
         pass
-    cleaning_valid = (
+    cleaning_valid = bool(
         {"stage", "records", "removed"} <= set(cleaning)
         and tuple(cleaning.stage) == EXPECTED_CLEANING_STAGES
         and cleaning.stage.is_unique
