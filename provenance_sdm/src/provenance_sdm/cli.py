@@ -148,6 +148,15 @@ def build_parser() -> argparse.ArgumentParser:
     audit_all.add_argument("--config", type=Path, required=True)
     audit_all.add_argument("--root", type=Path, default=Path("."))
     audit_all.add_argument("--output", type=Path, required=True)
+    mechanism = commands.add_parser("run-mechanism")
+    mechanism.add_argument("--config", type=Path, required=True)
+    mechanism.add_argument("--landscape", type=Path, required=True)
+    mechanism.add_argument("--crs", default="EPSG:27700")
+    mechanism.add_argument("--output", type=Path, required=True)
+    mechanism_audit = commands.add_parser("audit-mechanism")
+    mechanism_audit.add_argument("--config", type=Path, required=True)
+    mechanism_audit.add_argument("--output", type=Path, required=True)
+    mechanism_audit.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -326,6 +335,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         write_manifest(report, arguments.output, allow_replace=True)
         return 0 if report["core_status"] == "passed" else 1
+    if arguments.command == "run-mechanism":
+        from provenance_sdm.mechanism_runner import run_mechanism
+
+        run_mechanism(
+            load_study_config(arguments.config),
+            _load_landscape(arguments.landscape, arguments.crs),
+            arguments.output,
+        )
+        return 0
+    if arguments.command == "audit-mechanism":
+        from provenance_sdm.mechanism_runner import audit_mechanism
+
+        report = audit_mechanism(
+            arguments.output,
+            load_study_config(arguments.config),
+        )
+        write_manifest(report, arguments.report, allow_replace=True)
+        return 0 if report["status"] == "passed" else 1
     metrics = pd.read_parquet(arguments.results)
     arguments.output.mkdir(parents=True, exist_ok=True)
     if arguments.command == "summarize-simulation":

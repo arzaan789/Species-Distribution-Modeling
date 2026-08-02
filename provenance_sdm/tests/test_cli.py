@@ -28,6 +28,26 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "run-deepmaxent" in output
     assert "export-manuscript" in output
     assert "audit-all" in output
+    assert "run-mechanism" in output
+    assert "audit-mechanism" in output
+
+
+def test_mechanism_audit_requires_a_report_path(capsys) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(
+            [
+                "audit-mechanism",
+                "--config",
+                "config.yaml",
+                "--output",
+                "outputs",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert "--report" in capsys.readouterr().err
 
 
 def test_clean_gbif_requires_the_saved_request_manifest(capsys) -> None:
