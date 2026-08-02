@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
-from provenance_sdm.backgrounds import make_backgrounds
+from provenance_sdm.backgrounds import (
+    make_backgrounds,
+    make_latent_mixture_background,
+)
 from provenance_sdm.landscape import landscape_from_arrays
 from provenance_sdm.observation import simulate_observations, simulate_programmes
 from provenance_sdm.virtual_species import simulate_species_truth
@@ -121,3 +125,40 @@ def test_common_support_below_minimum_raises_diagnostic(
             minimum_cells=candidate_count + 1,
             seed=5,
         )
+
+
+def test_latent_mixture_background_uses_candidate_cells_and_exact_budget(
+    observed_community,
+) -> None:
+    frame = make_latent_mixture_background(
+        observed_community,
+        focal_species="sp_000",
+        n_cells=20,
+        seed=17,
+    )
+    candidate_cells = set(
+        observed_community.records.query(
+            "taxonomic_group == 0 and species_id != 'sp_000'"
+        ).cell_id
+    )
+
+    assert len(frame) == 20
+    assert frame.cell_id.is_unique
+    assert set(frame.cell_id) <= candidate_cells
+    assert set(frame.background_arm) == {"latent_mixture_tgb"}
+    assert "unsupported_mass" in frame
+    assert "true_effort" not in frame
+    assert "suitability" not in frame
+
+
+def test_latent_mixture_background_is_seed_deterministic(
+    observed_community,
+) -> None:
+    first = make_latent_mixture_background(
+        observed_community, "sp_000", 20, seed=31
+    )
+    second = make_latent_mixture_background(
+        observed_community, "sp_000", 20, seed=31
+    )
+
+    pd.testing.assert_frame_equal(first, second)

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from provenance_sdm.observation import ObservedCommunity
-from provenance_sdm.provenance import pm_tgb_weights
+from provenance_sdm.provenance import pm_tgb_weights, source_target_weights
 
 
 def _sample_cells(
@@ -144,3 +144,47 @@ def make_backgrounds(
         oracle_lookup
     )
     return arms
+
+
+def make_latent_mixture_background(
+    observed: ObservedCommunity,
+    focal_species: str,
+    n_cells: int,
+    seed: int,
+) -> pd.DataFrame:
+    """Sample TGB cells whose source totals match known latent allocation."""
+
+    if isinstance(n_cells, bool) or not isinstance(n_cells, int) or n_cells <= 0:
+        raise ValueError("n_cells must be a positive integer")
+    truth_by_id = {species.species_id: species for species in observed.truth}
+    if focal_species not in truth_by_id:
+        raise ValueError(f"unknown focal species: {focal_species!r}")
+    focal_truth = truth_by_id[focal_species]
+    candidates = observed.records.query(
+        "taxonomic_group == @focal_truth.taxonomic_group "
+        "and species_id != @focal_species"
+    )
+    mixture_rows = observed.source_mixtures.query(
+        "species_id == @focal_species"
+    )
+    if mixture_rows.programme_id.duplicated().any():
+        raise ValueError("focal latent mixture contains duplicate sources")
+    latent_mass = mixture_rows.set_index("programme_id").weight
+    candidate_sources = candidates.set_index("record_id").programme_id
+    provenance = source_target_weights(latent_mass, candidate_sources)
+    cell_weights = provenance.weights.groupby(
+        candidates.set_index("record_id").cell_id
+    ).sum()
+    selected = _sample_cells(
+        cell_weights,
+        n_cells,
+        np.random.default_rng(seed),
+        "latent-mixture target-group cells",
+    )
+    frame = _background_frame(
+        observed,
+        selected,
+        "latent_mixture_tgb",
+    )
+    frame["unsupported_mass"] = provenance.unsupported_mass
+    return frame

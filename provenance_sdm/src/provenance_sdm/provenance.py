@@ -44,14 +44,41 @@ def pm_tgb_weights(
     pooled target group, which is the conventional TGB fallback.
     """
 
-    if focal_sources.empty or candidate_sources.empty:
+    if focal_sources.empty:
         raise ValueError("source series must be non-empty")
-    if focal_sources.isna().any() or candidate_sources.isna().any():
+    if focal_sources.isna().any():
+        raise ValueError("source labels must be complete")
+    focal_mass = focal_sources.value_counts(normalize=True, sort=False)
+    return source_target_weights(focal_mass, candidate_sources)
+
+
+def source_target_weights(
+    target_mass: pd.Series,
+    candidate_sources: pd.Series,
+) -> ProvenanceWeights:
+    """Match candidate source totals to an explicit target distribution."""
+
+    target_values = target_mass.to_numpy(dtype=float)
+    if (
+        target_mass.empty
+        or not target_mass.index.is_unique
+        or target_mass.index.isna().any()
+        or not np.isfinite(target_values).all()
+        or np.any(target_values < 0)
+        or not np.isclose(target_values.sum(), 1.0)
+    ):
+        raise ValueError(
+            "target source mass must be a finite non-negative labelled "
+            "probability summing to one"
+        )
+    if candidate_sources.empty:
+        raise ValueError("source series must be non-empty")
+    if candidate_sources.isna().any():
         raise ValueError("source labels must be complete")
     if not candidate_sources.index.is_unique:
         raise ValueError("candidate indices must be unique")
 
-    focal_mass = focal_sources.value_counts(normalize=True, sort=False)
+    focal_mass = target_mass.astype(float).copy()
     candidate_counts = candidate_sources.value_counts(sort=False)
     supported_sources = focal_mass.index.intersection(
         candidate_counts.index,
