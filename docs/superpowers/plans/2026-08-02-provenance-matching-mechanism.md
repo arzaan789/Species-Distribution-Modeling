@@ -493,7 +493,7 @@ git commit -m "feat: gate and run flexible model sensitivity"
 
 **Interfaces:**
 - Consumes: frozen primary metrics, mechanism diagnostics, latent metrics, and optional flexible metrics.
-- Produces: `oriented_paired_effects(metrics)`, `diagnostic_arm_effects(primary, latent)`, and `mechanism_correlations(primary, diagnostics, n_boot=2_000, seed=20260730)`.
+- Produces: `oriented_paired_effects(metrics)`, `diagnostic_arm_effects(primary, latent)`, `hierarchical_effect_bootstrap(effects, n_boot=2_000, seed=20260730)`, and `mechanism_correlations(primary, diagnostics, n_boot=2_000, seed=20260730)`.
 
 - [ ] **Step 1: Write failing orientation and merge tests**
 
@@ -530,6 +530,12 @@ For each metric/alignment/bias group, calculate Spearman correlation between
 community labels with replacement, then species labels within each selected
 community, retaining paired scenario rows. Return estimate, 2.5% and 97.5%
 percentiles, pair count, draw count, and seed.
+
+Use the same community-then-species resampling helper in
+`hierarchical_effect_bootstrap`. Group by metric, alignment, bias level, and
+contrast; summarize mean oriented effect, 2.5% and 97.5% percentiles, pair
+count, draw count, and seed. This function provides uncertainty for both
+latent-mixture diagnostic contrasts and the flexible paired contrast.
 
 - [ ] **Step 5: Run focused and full tests**
 

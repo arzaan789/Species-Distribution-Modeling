@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import scipy.stats
 
 from provenance_sdm.simulation_runner import PRIMARY_METRICS
 
@@ -109,3 +110,201 @@ def hierarchical_bootstrap(
     output = point.merge(intervals, on=summary_keys, validate="one_to_one")
     output["contrast"] = "pm_tgb_minus_conventional_tgb"
     return output.sort_values(summary_keys).reset_index(drop=True)
+
+
+def _orientation(metric: str) -> int:
+    return -1 if metric in {"integrated_error", "response_curve_error"} else 1
+
+
+def oriented_paired_effects(metrics: pd.DataFrame) -> pd.DataFrame:
+    """Return primary paired effects oriented so positive means improvement."""
+
+    effects = paired_effects(metrics)
+    effects["orientation"] = effects.metric.map(_orientation).astype(int)
+    effects["oriented_effect"] = effects.effect * effects.orientation
+    return effects
+
+
+def diagnostic_arm_effects(
+    primary_metrics: pd.DataFrame,
+    latent_metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    """Align latent-mixture results with observed and conventional TGB arms."""
+
+    required_primary = {*PAIR_KEYS, "background_arm", *PRIMARY_METRICS}
+    required_latent = {*PAIR_KEYS, "background_arm", *PRIMARY_METRICS}
+    if missing := required_primary.difference(primary_metrics.columns):
+        raise ValueError(f"primary metrics are missing columns: {sorted(missing)}")
+    if missing := required_latent.difference(latent_metrics.columns):
+        raise ValueError(f"latent metrics are missing columns: {sorted(missing)}")
+    latent = latent_metrics.query(
+        "background_arm == 'latent_mixture_tgb'"
+    ).set_index(list(PAIR_KEYS)).sort_index()
+    if latent.empty or not latent.index.is_unique:
+        raise ValueError("latent metrics require one unique row per pair")
+    frames = []
+    for comparator_arm in ("conventional_tgb", "pm_tgb"):
+        comparator = primary_metrics.query(
+            "background_arm == @comparator_arm"
+        ).set_index(list(PAIR_KEYS)).sort_index()
+        if not comparator.index.is_unique or not comparator.index.equals(latent.index):
+            raise ValueError(
+                f"latent and {comparator_arm} metrics require complete unique aligned pairs"
+            )
+        for metric in PRIMARY_METRICS:
+            frame = pd.DataFrame(index=latent.index)
+            frame["metric"] = metric
+            frame["comparator_value"] = comparator[metric]
+            frame["latent_mixture_value"] = latent[metric]
+            frame["effect"] = latent[metric] - comparator[metric]
+            frame["orientation"] = _orientation(metric)
+            frame["oriented_effect"] = frame.effect * frame.orientation
+            frame["contrast"] = (
+                f"latent_mixture_tgb_minus_{comparator_arm}"
+            )
+            frames.append(frame.reset_index())
+    return pd.concat(frames, ignore_index=True)
+
+
+def _sample_hierarchy(
+    rows: pd.DataFrame,
+    generator: np.random.Generator,
+) -> pd.DataFrame:
+    sampled = []
+    communities = rows.community_seed.unique()
+    for community_draw, community in enumerate(
+        generator.choice(communities, size=len(communities), replace=True)
+    ):
+        community_rows = rows.loc[rows.community_seed.eq(community)]
+        species_ids = community_rows.species_id.unique()
+        for species_draw, species_id in enumerate(
+            generator.choice(species_ids, size=len(species_ids), replace=True)
+        ):
+            selected = community_rows.loc[
+                community_rows.species_id.eq(species_id)
+            ].copy()
+            selected["_community_draw"] = community_draw
+            selected["_species_draw"] = species_draw
+            sampled.append(selected)
+    return pd.concat(sampled, ignore_index=True)
+
+
+def hierarchical_effect_bootstrap(
+    effects: pd.DataFrame,
+    n_boot: int = 2_000,
+    seed: int = 20260730,
+) -> pd.DataFrame:
+    """Summarize oriented effects by resampling communities then species."""
+
+    required = {
+        *PAIR_KEYS,
+        "metric",
+        "contrast",
+        "oriented_effect",
+    }
+    if missing := required.difference(effects.columns):
+        raise ValueError(f"effect rows are missing columns: {sorted(missing)}")
+    if n_boot <= 0:
+        raise ValueError("n_boot must be positive")
+    unique_keys = [*PAIR_KEYS, "metric", "contrast"]
+    if effects.duplicated(unique_keys).any():
+        raise ValueError("effect rows must have unique pair-metric-contrast keys")
+    group_keys = ["metric", "alignment", "bias_level", "contrast"]
+    generator = np.random.default_rng(seed)
+    output = []
+    for key, rows in effects.groupby(group_keys, sort=True):
+        draws = np.empty(n_boot, dtype=float)
+        for draw in range(n_boot):
+            sampled = _sample_hierarchy(rows, generator)
+            draws[draw] = sampled.oriented_effect.mean()
+        output.append(
+            {
+                **dict(zip(group_keys, key, strict=True)),
+                "estimate": float(rows.oriented_effect.mean()),
+                "lower": float(np.quantile(draws, 0.025)),
+                "upper": float(np.quantile(draws, 0.975)),
+                "n_pairs": int(len(rows)),
+                "bootstrap_draws": int(n_boot),
+                "bootstrap_seed": int(seed),
+            }
+        )
+    return pd.DataFrame(output).sort_values(group_keys).reset_index(drop=True)
+
+
+def _rank_correlation(rows: pd.DataFrame) -> float:
+    left = rows.ecological_overlap_tv.to_numpy(dtype=float)
+    right = rows.oriented_effect.to_numpy(dtype=float)
+    if len(np.unique(left)) < 2 or len(np.unique(right)) < 2:
+        return np.nan
+    return float(scipy.stats.spearmanr(left, right).statistic)
+
+
+def mechanism_correlations(
+    primary_metrics: pd.DataFrame,
+    diagnostics: pd.DataFrame,
+    n_boot: int = 2_000,
+    seed: int = 20260730,
+) -> pd.DataFrame:
+    """Relate known ecological source distortion to oriented PM-TGB effects."""
+
+    diagnostic_required = {*PAIR_KEYS, "ecological_overlap_tv"}
+    if missing := diagnostic_required.difference(diagnostics.columns):
+        raise ValueError(f"mechanism diagnostics are missing columns: {sorted(missing)}")
+    if diagnostics.duplicated(list(PAIR_KEYS)).any():
+        raise ValueError("mechanism diagnostics must have unique pair keys")
+    effects = oriented_paired_effects(primary_metrics)
+    effect_pairs = effects.loc[:, PAIR_KEYS].drop_duplicates()
+    diagnostic_pairs = diagnostics.loc[:, PAIR_KEYS]
+    left_only = effect_pairs.merge(
+        diagnostic_pairs,
+        on=list(PAIR_KEYS),
+        how="left",
+        indicator=True,
+    )._merge.ne("both").any()
+    right_only = diagnostic_pairs.merge(
+        effect_pairs,
+        on=list(PAIR_KEYS),
+        how="left",
+        indicator=True,
+    )._merge.ne("both").any()
+    if left_only or right_only:
+        raise ValueError("mechanism diagnostics must completely match primary pairs")
+    merged = effects.merge(
+        diagnostics.loc[:, [*PAIR_KEYS, "ecological_overlap_tv"]],
+        on=list(PAIR_KEYS),
+        how="left",
+        validate="many_to_one",
+    )
+    if (
+        not np.isfinite(merged.ecological_overlap_tv.to_numpy(dtype=float)).all()
+        or not merged.ecological_overlap_tv.between(0.0, 1.0).all()
+    ):
+        raise ValueError("ecological overlap distortion must be finite and bounded")
+    if n_boot <= 0:
+        raise ValueError("n_boot must be positive")
+    group_keys = ["metric", "alignment", "bias_level"]
+    generator = np.random.default_rng(seed)
+    output = []
+    for key, rows in merged.groupby(group_keys, sort=True):
+        draws = np.empty(n_boot, dtype=float)
+        for draw in range(n_boot):
+            draws[draw] = _rank_correlation(
+                _sample_hierarchy(rows, generator)
+            )
+        finite_draws = draws[np.isfinite(draws)]
+        lower = float(np.quantile(finite_draws, 0.025)) if finite_draws.size else np.nan
+        upper = float(np.quantile(finite_draws, 0.975)) if finite_draws.size else np.nan
+        output.append(
+            {
+                **dict(zip(group_keys, key, strict=True)),
+                "estimate": _rank_correlation(rows),
+                "lower": lower,
+                "upper": upper,
+                "n_pairs": int(len(rows)),
+                "bootstrap_draws": int(n_boot),
+                "bootstrap_seed": int(seed),
+                "finite_bootstrap_draws": int(finite_draws.size),
+                "method": "Spearman correlation with community-species bootstrap",
+            }
+        )
+    return pd.DataFrame(output).sort_values(group_keys).reset_index(drop=True)
