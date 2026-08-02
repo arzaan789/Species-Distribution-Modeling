@@ -30,6 +30,9 @@ def test_help_exposes_simulation_and_audit_commands(capsys) -> None:
     assert "audit-all" in output
     assert "run-mechanism" in output
     assert "audit-mechanism" in output
+    assert "flexible-pilot" in output
+    assert "run-flexible" in output
+    assert "audit-flexible" in output
 
 
 def test_mechanism_audit_requires_a_report_path(capsys) -> None:

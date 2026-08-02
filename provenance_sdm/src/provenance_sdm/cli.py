@@ -157,6 +157,27 @@ def build_parser() -> argparse.ArgumentParser:
     mechanism_audit.add_argument("--config", type=Path, required=True)
     mechanism_audit.add_argument("--output", type=Path, required=True)
     mechanism_audit.add_argument("--report", type=Path, required=True)
+    flexible_pilot = commands.add_parser("flexible-pilot")
+    flexible_pilot.add_argument("--config", type=Path, required=True)
+    flexible_pilot.add_argument("--landscape", type=Path, required=True)
+    flexible_pilot.add_argument("--crs", default="EPSG:27700")
+    flexible_pilot.add_argument("--output", type=Path, required=True)
+    flexible_pilot.add_argument(
+        "--regularizations",
+        type=float,
+        nargs="+",
+        default=[2.0, 5.0, 10.0],
+    )
+    flexible_run = commands.add_parser("run-flexible")
+    flexible_run.add_argument("--config", type=Path, required=True)
+    flexible_run.add_argument("--landscape", type=Path, required=True)
+    flexible_run.add_argument("--crs", default="EPSG:27700")
+    flexible_run.add_argument("--gate", type=Path, required=True)
+    flexible_run.add_argument("--output", type=Path, required=True)
+    flexible_audit = commands.add_parser("audit-flexible")
+    flexible_audit.add_argument("--config", type=Path, required=True)
+    flexible_audit.add_argument("--output", type=Path, required=True)
+    flexible_audit.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -348,6 +369,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         from provenance_sdm.mechanism_runner import audit_mechanism
 
         report = audit_mechanism(
+            arguments.output,
+            load_study_config(arguments.config),
+        )
+        write_manifest(report, arguments.report, allow_replace=True)
+        return 0 if report["status"] == "passed" else 1
+    if arguments.command == "flexible-pilot":
+        from provenance_sdm.flexible_runner import run_flexible_pilot
+
+        run_flexible_pilot(
+            load_study_config(arguments.config),
+            _load_landscape(arguments.landscape, arguments.crs),
+            arguments.output,
+            arguments.regularizations,
+        )
+        return 0
+    if arguments.command == "run-flexible":
+        from provenance_sdm.flexible_runner import run_flexible_sensitivity
+
+        run_flexible_sensitivity(
+            load_study_config(arguments.config),
+            _load_landscape(arguments.landscape, arguments.crs),
+            arguments.gate,
+            arguments.output,
+        )
+        return 0
+    if arguments.command == "audit-flexible":
+        from provenance_sdm.flexible_runner import audit_flexible_sensitivity
+
+        report = audit_flexible_sensitivity(
             arguments.output,
             load_study_config(arguments.config),
         )
