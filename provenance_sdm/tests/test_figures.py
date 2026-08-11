@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from provenance_sdm.figures import (
+    _workflow_geometry,
     empirical_map_difference,
     write_empirical_figures,
     write_mechanism_figures,
@@ -60,6 +61,16 @@ def test_simulation_figures_are_nonempty_neutral_pngs(tmp_path: Path) -> None:
         for path in paths
         for word in ("improvement", "superior", "failure")
     )
+
+
+def test_workflow_geometry_keeps_boxes_separate_and_arrows_forward() -> None:
+    boxes, arrows = _workflow_geometry(7)
+
+    gaps = boxes[1:, 0] - boxes[:-1, 1]
+    assert (gaps > 0.01).all()
+    assert (arrows[:, 1] > arrows[:, 0]).all()
+    assert (arrows[:, 0] >= boxes[:-1, 1]).all()
+    assert (arrows[:, 1] <= boxes[1:, 0]).all()
 
 
 def test_empirical_figures_export_source_and_map_panels(tmp_path: Path) -> None:

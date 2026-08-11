@@ -10,6 +10,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.patches import FancyBboxPatch
 
 from provenance_sdm.summaries import (
     diagnostic_arm_effects,
@@ -26,34 +27,68 @@ def _save(figure: plt.Figure, path: Path) -> Path:
     return path
 
 
+def _workflow_geometry(n_boxes: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return non-overlapping box edges and forward arrow endpoints."""
+
+    if n_boxes < 2:
+        raise ValueError("workflow requires at least two boxes")
+    centers = np.linspace(0.07, 0.93, n_boxes)
+    box_width = 0.105
+    boxes = np.column_stack(
+        [centers - box_width / 2, centers + box_width / 2]
+    )
+    arrow_padding = 0.006
+    arrows = np.column_stack(
+        [
+            boxes[:-1, 1] + arrow_padding,
+            boxes[1:, 0] - arrow_padding,
+        ]
+    )
+    return boxes, arrows
+
+
 def _workflow_figure(path: Path) -> Path:
-    figure, axis = plt.subplots(figsize=(10, 3))
+    figure, axis = plt.subplots(figsize=(12, 3.2))
     axis.axis("off")
     labels = (
         "Ecological\nsuitability",
-        "Recording-programme\neffort",
+        "Recording\nprogramme\neffort",
         "Latent programme\nallocation",
         "Presence-only\nrecords",
         "Observed source\ncomposition",
         "Background\narms",
         "Truth-based\nevaluation",
     )
-    x_positions = np.linspace(0.08, 0.92, len(labels))
-    for x_position, label in zip(x_positions, labels, strict=True):
+    boxes, arrows = _workflow_geometry(len(labels))
+    box_bottom = 0.36
+    box_height = 0.30
+    for (left, right), label in zip(boxes, labels, strict=True):
+        axis.add_patch(
+            FancyBboxPatch(
+                (left, box_bottom),
+                right - left,
+                box_height,
+                boxstyle="round,pad=0.008",
+                facecolor="#e8eef5",
+                edgecolor="#1a202c",
+                linewidth=1.2,
+                transform=axis.transAxes,
+            )
+        )
         axis.text(
-            x_position,
-            0.5,
+            (left + right) / 2,
+            box_bottom + box_height / 2,
             label,
             ha="center",
             va="center",
-            bbox={"boxstyle": "round,pad=0.5", "facecolor": "#e8eef5"},
+            fontsize=9.5,
             transform=axis.transAxes,
         )
-    for left, right in zip(x_positions[:-1], x_positions[1:], strict=True):
+    for start, end in arrows:
         axis.annotate(
             "",
-            xy=(right - 0.07, 0.5),
-            xytext=(left + 0.07, 0.5),
+            xy=(end, box_bottom + box_height / 2),
+            xytext=(start, box_bottom + box_height / 2),
             arrowprops={"arrowstyle": "->", "color": "#4a5568"},
             xycoords=axis.transAxes,
         )
