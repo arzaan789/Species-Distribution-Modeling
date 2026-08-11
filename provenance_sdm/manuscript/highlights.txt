@@ -1,0 +1,5 @@
+Observed source proportions combine programme allocation and ecological overlap.
+Provenance-matched backgrounds gave no general gain across 14,400 model fits.
+Latent allocation matching recovered performance when sampling bias was strong.
+GBIF map centroids shifted by 7.9 to 64.9 km despite small AUC changes.
+Effort correction needs survey-allocation metadata, not provenance counts alone.
