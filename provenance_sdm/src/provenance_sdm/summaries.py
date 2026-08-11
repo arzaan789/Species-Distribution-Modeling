@@ -77,36 +77,32 @@ def hierarchical_bootstrap(
     point = effects.groupby(summary_keys).effect.agg(["mean", "size"]).reset_index()
     point = point.rename(columns={"mean": "estimate", "size": "n_pairs"})
     generator = np.random.default_rng(seed)
-    communities = effects.community_seed.unique()
-    bootstrap_rows = []
-
-    for bootstrap_id in range(n_boot):
-        sampled_tables = []
-        for community_draw, community in enumerate(
-            generator.choice(communities, size=len(communities), replace=True)
-        ):
-            community_rows = effects.query("community_seed == @community")
-            species = community_rows.species_id.unique()
-            for species_draw, species_id in enumerate(
-                generator.choice(species, size=len(species), replace=True)
-            ):
-                selected = community_rows.query("species_id == @species_id").copy()
-                selected["_community_draw"] = community_draw
-                selected["_species_draw"] = species_draw
-                sampled_tables.append(selected)
-        sampled = pd.concat(sampled_tables, ignore_index=True)
-        estimate = sampled.groupby(summary_keys).effect.mean().reset_index()
-        estimate["bootstrap_id"] = bootstrap_id
-        bootstrap_rows.append(estimate)
-
-    draws = pd.concat(bootstrap_rows, ignore_index=True)
-    intervals = (
-        draws.groupby(summary_keys)
-        .effect.quantile([0.025, 0.975])
-        .unstack()
-        .rename(columns={0.025: "lower", 0.975: "upper"})
-        .reset_index()
-    )
+    pair_columns = ["community_seed", "species_id"]
+    pair_rows = effects.loc[:, pair_columns].drop_duplicates()
+    pair_index = pd.MultiIndex.from_frame(pair_rows)
+    matrix = effects.pivot(
+        index=pair_columns,
+        columns=summary_keys,
+        values="effect",
+    ).reindex(pair_index)
+    sampler = _HierarchySampler(pair_rows)
+    values = matrix.to_numpy(dtype=float)
+    finite = np.isfinite(values)
+    values = np.nan_to_num(values)
+    draws = np.empty((n_boot, values.shape[1]), dtype=float)
+    for draw in range(n_boot):
+        positions = sampler.sample_positions(generator)
+        weights = np.bincount(positions, minlength=len(pair_rows))
+        denominators = weights @ finite
+        draws[draw] = np.divide(
+            weights @ values,
+            denominators,
+            out=np.full(values.shape[1], np.nan),
+            where=denominators > 0,
+        )
+    intervals = matrix.columns.to_frame(index=False)
+    intervals["lower"] = np.nanquantile(draws, 0.025, axis=0)
+    intervals["upper"] = np.nanquantile(draws, 0.975, axis=0)
     output = point.merge(intervals, on=summary_keys, validate="one_to_one")
     output["contrast"] = "pm_tgb_minus_conventional_tgb"
     return output.sort_values(summary_keys).reset_index(drop=True)
@@ -166,27 +162,38 @@ def diagnostic_arm_effects(
     return pd.concat(frames, ignore_index=True)
 
 
-def _sample_hierarchy(
-    rows: pd.DataFrame,
-    generator: np.random.Generator,
-) -> pd.DataFrame:
-    sampled = []
-    communities = rows.community_seed.unique()
-    for community_draw, community in enumerate(
-        generator.choice(communities, size=len(communities), replace=True)
-    ):
-        community_rows = rows.loc[rows.community_seed.eq(community)]
-        species_ids = community_rows.species_id.unique()
-        for species_draw, species_id in enumerate(
-            generator.choice(species_ids, size=len(species_ids), replace=True)
-        ):
-            selected = community_rows.loc[
-                community_rows.species_id.eq(species_id)
-            ].copy()
-            selected["_community_draw"] = community_draw
-            selected["_species_draw"] = species_draw
-            sampled.append(selected)
-    return pd.concat(sampled, ignore_index=True)
+class _HierarchySampler:
+    """Pre-index a community-species hierarchy for repeated bootstrap draws."""
+
+    def __init__(self, rows: pd.DataFrame) -> None:
+        self._communities = rows.community_seed.unique()
+        community_values = rows.community_seed.to_numpy()
+        species_values = rows.species_id.to_numpy()
+        self._positions: dict[object, np.ndarray] = {}
+        for community in self._communities:
+            positions = np.flatnonzero(community_values == community)
+            if pd.Index(species_values[positions]).has_duplicates:
+                raise ValueError(
+                    "hierarchical samples require one row per community-species pair"
+                )
+            self._positions[community] = positions
+
+    def sample_positions(
+        self,
+        generator: np.random.Generator,
+    ) -> np.ndarray:
+        sampled = []
+        communities = generator.choice(
+            self._communities,
+            size=len(self._communities),
+            replace=True,
+        )
+        for community in communities:
+            positions = self._positions[community]
+            sampled.append(
+                generator.choice(positions, size=len(positions), replace=True)
+            )
+        return np.concatenate(sampled)
 
 
 def hierarchical_effect_bootstrap(
@@ -213,10 +220,12 @@ def hierarchical_effect_bootstrap(
     generator = np.random.default_rng(seed)
     output = []
     for key, rows in effects.groupby(group_keys, sort=True):
+        sampler = _HierarchySampler(rows)
+        values = rows.oriented_effect.to_numpy(dtype=float)
         draws = np.empty(n_boot, dtype=float)
         for draw in range(n_boot):
-            sampled = _sample_hierarchy(rows, generator)
-            draws[draw] = sampled.oriented_effect.mean()
+            positions = sampler.sample_positions(generator)
+            draws[draw] = values[positions].mean()
         output.append(
             {
                 **dict(zip(group_keys, key, strict=True)),
@@ -286,11 +295,19 @@ def mechanism_correlations(
     generator = np.random.default_rng(seed)
     output = []
     for key, rows in merged.groupby(group_keys, sort=True):
+        sampler = _HierarchySampler(rows)
+        left = rows.ecological_overlap_tv.to_numpy(dtype=float)
+        right = rows.oriented_effect.to_numpy(dtype=float)
         draws = np.empty(n_boot, dtype=float)
         for draw in range(n_boot):
-            draws[draw] = _rank_correlation(
-                _sample_hierarchy(rows, generator)
+            positions = sampler.sample_positions(generator)
+            sampled = pd.DataFrame(
+                {
+                    "ecological_overlap_tv": left[positions],
+                    "oriented_effect": right[positions],
+                }
             )
+            draws[draw] = _rank_correlation(sampled)
         finite_draws = draws[np.isfinite(draws)]
         lower = float(np.quantile(finite_draws, 0.025)) if finite_draws.size else np.nan
         upper = float(np.quantile(finite_draws, 0.975)) if finite_draws.size else np.nan

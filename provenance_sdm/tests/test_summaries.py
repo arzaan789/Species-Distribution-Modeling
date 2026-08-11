@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import pandas as pd
 import pytest
 
@@ -79,6 +81,37 @@ def test_hierarchical_bootstrap_is_deterministic(fake_metrics) -> None:
     }
     assert first.lower.le(first.estimate).all()
     assert first.upper.ge(first.estimate).all()
+
+
+def test_primary_hierarchical_bootstrap_avoids_per_draw_frame_copies() -> None:
+    rows = []
+    for community in range(20):
+        for species in range(6):
+            for arm in ("conventional_tgb", "pm_tgb"):
+                improvement = 0.1 if arm == "pm_tgb" else 0.0
+                rows.append(
+                    {
+                        "community_seed": community,
+                        "alignment": "partial",
+                        "bias_level": "strong",
+                        "species_id": f"sp_{species}",
+                        "background_arm": arm,
+                        "suitability_spearman": 0.5 + improvement,
+                        "integrated_error": 0.4 - improvement,
+                        "unbiased_auc": 0.6 + improvement,
+                        "response_curve_error": 0.3 - improvement,
+                        "top10_overlap": 0.4 + improvement,
+                    }
+                )
+    metrics = pd.DataFrame(rows)
+
+    started = time.perf_counter()
+    result = hierarchical_bootstrap(metrics, n_boot=20, seed=17)
+    elapsed = time.perf_counter() - started
+
+    assert result.query("metric == 'suitability_spearman'").iloc[0].estimate \
+        == pytest.approx(0.1)
+    assert elapsed < 1.0
 
 
 def test_oriented_effects_make_lower_errors_positive(fake_metrics) -> None:
@@ -184,3 +217,28 @@ def test_mechanism_correlations_require_unique_complete_diagnostics(
             fake_diagnostics.iloc[:-1],
             n_boot=20,
         )
+
+
+def test_hierarchical_effect_bootstrap_avoids_per_draw_frame_copies() -> None:
+    effects = pd.DataFrame(
+        [
+            {
+                "community_seed": community,
+                "alignment": "partial",
+                "bias_level": "strong",
+                "species_id": f"sp_{species}",
+                "metric": "suitability_spearman",
+                "contrast": "pm_tgb_minus_conventional_tgb",
+                "oriented_effect": (community + species) / 100,
+            }
+            for community in range(20)
+            for species in range(6)
+        ]
+    )
+
+    started = time.perf_counter()
+    result = hierarchical_effect_bootstrap(effects, n_boot=20, seed=17)
+    elapsed = time.perf_counter() - started
+
+    assert result.iloc[0].estimate == pytest.approx(0.12)
+    assert elapsed < 1.0
