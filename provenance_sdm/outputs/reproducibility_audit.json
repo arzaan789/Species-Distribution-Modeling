@@ -1,0 +1,168 @@
+{
+  "actual_empirical_species": [
+    "Erinaceus europaeus",
+    "Lepus europaeus",
+    "Muscardinus avellanarius",
+    "Sciurus vulgaris"
+  ],
+  "artifact_hashes": {
+    "empirical_metrics.parquet": "94128f5fee5bf645296c5a95e149d05fb453c96256353a8dd9b5b1508b3c9438",
+    "flexible_gate.json": "109d2b1cebf314fc57e6ff553df7f7113693610fb8f072c7484dd501f71f8909",
+    "flexible_pilot.parquet": "a82b05ae0267eec1375892cd65f9a0e14c89c09f1dd71b08ea9b09ed02aab6a3",
+    "gb_grid.manifest.json": "f9eba218a495bc7a2c115db928942a4ba26a43fc0374e48208f43db88f4a601d",
+    "gbif_archive.json": "7347bab2f045bbd50df1c6b120daed059a698ebe5277caa83aa525fc6e39e549",
+    "latent_mixture_metrics.parquet": "a282c800b7a265149087b280f21b4ebbd2dd3b072f9db6d717d8b8d16a589f07",
+    "mechanism_diagnostics.parquet": "63fdb373a2a1f4080c715689ec7117a335be33d0d7d2e0deb05e15b4ff0032b9",
+    "occurrence_cleaning_audit.csv": "72abd0c0a372c90d8e400e554454c6004c52186024cec3ec4ac68467136bfd4d",
+    "simulation_metrics.parquet": "6eeaa114817aaf723b1dd0ce21f21fa1f694d4aa47eefb4d4dea16e87b01d1fb",
+    "spatial_block_class_audit.csv": "fd8f09462a3c23d538e02a657c20c4f6b8f883dc8179acc7d83bcdac76e7c1a9",
+    "spatial_fold_assignments.parquet": "7ea45136d67c1e226710eb5444cea4a27b878177b2d302170ce47b7d9a7363d3"
+  },
+  "checks": {
+    "cleaning_audit_valid": true,
+    "empirical_arms_exact": true,
+    "empirical_budgets_paired": true,
+    "empirical_common_evaluation": true,
+    "empirical_folds_complete": true,
+    "empirical_metrics_finite": true,
+    "empirical_provenance_exact": true,
+    "empirical_species_exact": true,
+    "empirical_widths_exact": true,
+    "excluded_taxa_absent": true,
+    "flexible_evidence_valid": true,
+    "gbif_manifest_valid": true,
+    "gbif_timestamp_valid": true,
+    "grid_manifest_valid": true,
+    "linear_feature_basis": true,
+    "mechanism_complete": true,
+    "primary_regularization": true,
+    "simulation_budgets_paired": true,
+    "simulation_complete": true,
+    "spatial_fold_artifacts": true,
+    "stable_predictions": true,
+    "submission_figures_valid": true
+  },
+  "configuration_hash": "6231cb729d98622e7127d0fa7165fe6da91f36b188bcad8ecebf601f7ffaaad3",
+  "core_status": "passed",
+  "deepmaxent": {
+    "gate_sha256": "7fac860ad2cdb8163155e30bda3f3fb0b7811fad356369128f5142177683037e",
+    "reasons": [],
+    "status": "gate_passed_no_complete_run"
+  },
+  "excluded_taxon_scan": {
+    "matches": []
+  },
+  "expected_empirical_species": [
+    "Erinaceus europaeus",
+    "Lepus europaeus",
+    "Muscardinus avellanarius",
+    "Sciurus vulgaris"
+  ],
+  "figures": {
+    "empirical_map_contrast.png": {
+      "bytes": 332709,
+      "exists": true,
+      "png_signature": true
+    },
+    "empirical_source_contrasts.png": {
+      "bytes": 78057,
+      "exists": true,
+      "png_signature": true
+    },
+    "latent_mixture_contrasts.png": {
+      "bytes": 118269,
+      "exists": true,
+      "png_signature": true
+    },
+    "paired_truth_contrasts.png": {
+      "bytes": 78466,
+      "exists": true,
+      "png_signature": true
+    },
+    "simulation_workflow.png": {
+      "bytes": 58756,
+      "exists": true,
+      "png_signature": true
+    },
+    "source_composition_mechanism.png": {
+      "bytes": 220833,
+      "exists": true,
+      "png_signature": true
+    }
+  },
+  "flexible_audit": {
+    "completed_full": 0,
+    "configuration_hash": "6231cb729d98622e7127d0fa7165fe6da91f36b188bcad8ecebf601f7ffaaad3",
+    "duplicate_full": 0,
+    "failures": 0,
+    "full_complete": true,
+    "full_finite": true,
+    "full_labels_valid": true,
+    "full_run_included": false,
+    "full_stable": true,
+    "gate_reason": "no candidate passed every stability check",
+    "missing_full": 0,
+    "pilot_complete": true,
+    "pilot_duplicates": 0,
+    "pilot_labels_valid": true,
+    "pilot_stability_matches_gate": true,
+    "selected_regularization": null,
+    "status": "passed",
+    "tested_regularizations": [
+      2.0,
+      5.0,
+      10.0
+    ],
+    "unexpected_full": 0
+  },
+  "generated_at": "2026-08-11T16:05:23.656792+00:00",
+  "linear_feature_basis": true,
+  "mechanism_audit": {
+    "completed_diagnostics": 3600,
+    "completed_latent": 3600,
+    "configuration_hash": "6231cb729d98622e7127d0fa7165fe6da91f36b188bcad8ecebf601f7ffaaad3",
+    "duplicate_diagnostics": 0,
+    "duplicate_latent": 0,
+    "expected_diagnostics": 3600,
+    "expected_latent": 3600,
+    "failures": 0,
+    "finite_diagnostics": true,
+    "finite_latent_metrics": true,
+    "labels_valid": true,
+    "landscape_hashes": [
+      "cd30ca7e54d91a566c52b2293161c3983a0ca7ce071ec0509dbbb253b02f78e1"
+    ],
+    "missing_diagnostic_keys": [],
+    "missing_diagnostics": 0,
+    "missing_latent": 0,
+    "missing_latent_keys": [],
+    "stable_latent_predictions": true,
+    "status": "passed",
+    "unexpected_diagnostic_keys": [],
+    "unexpected_diagnostics": 0,
+    "unexpected_latent": 0,
+    "unexpected_latent_keys": []
+  },
+  "simulation_audit": {
+    "complete_background_arms": true,
+    "completed": 14400,
+    "configuration_hash": "6231cb729d98622e7127d0fa7165fe6da91f36b188bcad8ecebf601f7ffaaad3",
+    "duplicates": 0,
+    "expected": 14400,
+    "failed": 0,
+    "finite_primary_metrics": true,
+    "landscape_hashes": [
+      "cd30ca7e54d91a566c52b2293161c3983a0ca7ce071ec0509dbbb253b02f78e1"
+    ],
+    "linear_feature_basis": true,
+    "missing": 0,
+    "missing_keys": [],
+    "primary_regularization": true,
+    "stable_predictions": true,
+    "status": "passed",
+    "unexpected": 0,
+    "unexpected_keys": []
+  },
+  "spatial_fold_artifacts": true,
+  "stable_predictions": true
+}

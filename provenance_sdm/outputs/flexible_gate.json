@@ -1,0 +1,18 @@
+{
+  "expected_rows_per_candidate": 600,
+  "feature_basis": "clamped_linear_quadratic_interactions",
+  "include": false,
+  "landscape_hash": "cd30ca7e54d91a566c52b2293161c3983a0ca7ce071ec0509dbbb253b02f78e1",
+  "reason": "no candidate passed every stability check",
+  "regularization": null,
+  "regularizations": [
+    2.0,
+    5.0,
+    10.0
+  ],
+  "tested_regularizations": [
+    2.0,
+    5.0,
+    10.0
+  ]
+}

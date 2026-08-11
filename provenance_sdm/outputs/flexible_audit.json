@@ -1,0 +1,25 @@
+{
+  "completed_full": 0,
+  "configuration_hash": "6231cb729d98622e7127d0fa7165fe6da91f36b188bcad8ecebf601f7ffaaad3",
+  "duplicate_full": 0,
+  "failures": 0,
+  "full_complete": true,
+  "full_finite": true,
+  "full_labels_valid": true,
+  "full_run_included": false,
+  "full_stable": true,
+  "gate_reason": "no candidate passed every stability check",
+  "missing_full": 0,
+  "pilot_complete": true,
+  "pilot_duplicates": 0,
+  "pilot_labels_valid": true,
+  "pilot_stability_matches_gate": true,
+  "selected_regularization": null,
+  "status": "passed",
+  "tested_regularizations": [
+    2.0,
+    5.0,
+    10.0
+  ],
+  "unexpected_full": 0
+}
