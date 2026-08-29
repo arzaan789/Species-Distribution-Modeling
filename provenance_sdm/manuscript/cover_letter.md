@@ -1,4 +1,4 @@
-11 August 2026
+29 August 2026
 
 Editor-in-Chief
 
@@ -14,7 +14,7 @@ The study combines 14,400 paired virtual-species model fits, a known-process dec
 
 The work fits *Ecological Modelling* because it evaluates a reproducible modelling intervention, links its behaviour to an explicit observation-process equation, and tests its practical consequences under controlled and empirical conditions. It also distinguishes background construction from recent developments in flexible multi-species modelling, including DeepMaxEnt.
 
-This manuscript is original, is not under consideration elsewhere, and has one author. No competing interests exist. The GBIF archive has a persistent DOI, and the code, configuration, audit manifests, figures, and tables are available on a dedicated public repository branch. A versioned archival release will be created before final submission.
+This manuscript is original, is not under consideration elsewhere, and has one author. No competing interests exist. The GBIF archive has a persistent DOI, and the code, configuration, audit manifests, figures, and tables are available on a dedicated public repository branch and in a versioned Zenodo archive at https://doi.org/10.5281/zenodo.22164506.
 
 Thank you for considering the manuscript.
 
@@ -22,6 +22,6 @@ Yours sincerely,
 
 Arzaan Ul Mairaj
 
-Independent researcher, United Kingdom
+Independent researcher, Birmingham, B1 1BA, United Kingdom
 
 arzaaan789@gmail.com

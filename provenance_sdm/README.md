@@ -1,5 +1,7 @@
 # Provenance-aware SDM experiment
 
+Versioned archive: https://doi.org/10.5281/zenodo.22164506
+
 This package implements the simulation-led evaluation described in the paper
 design. Its core compares uniform, conventional target-group,
 provenance-matched target-group, and oracle-effort backgrounds under known

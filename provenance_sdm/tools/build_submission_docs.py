@@ -292,7 +292,7 @@ def add_title_page(document: Document) -> None:
 
     affiliation = document.add_paragraph()
     affiliation.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    affiliation.add_run("Independent researcher, United Kingdom")
+    affiliation.add_run("Independent researcher, Birmingham, B1 1BA, United Kingdom")
 
     corresponding = document.add_paragraph()
     corresponding.alignment = WD_ALIGN_PARAGRAPH.CENTER
