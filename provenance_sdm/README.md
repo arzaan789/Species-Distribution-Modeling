@@ -209,3 +209,8 @@ km and both provenance levels, the GBIF DOI/hash and grid hash are present, all
 cleaning stages are retained, four valid submission PNGs exist, and no excluded
 taxon occurs in retained submission data. DeepMaxent status is recorded but
 never determines core success.
+
+## Licence
+
+The software and reproducibility materials in this repository are released
+under the [MIT License](LICENSE).
