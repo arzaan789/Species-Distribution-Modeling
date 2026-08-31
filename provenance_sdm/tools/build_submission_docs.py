@@ -301,7 +301,7 @@ def add_title_page(document: Document) -> None:
     target = document.add_paragraph()
     target.alignment = WD_ALIGN_PARAGRAPH.CENTER
     target.paragraph_format.space_before = Pt(20)
-    run = target.add_run("Original Research Article prepared for Ecological Modelling")
+    run = target.add_run("Research Article prepared for Journal of Biogeography")
     run.italic = True
 
     document.add_page_break()
@@ -315,7 +315,7 @@ def build_main() -> Path:
     # Skip source title and contact block already represented by the title page.
     abstract_start = lines.index("## Abstract")
     add_markdown(document, lines=lines[abstract_start:], include_figures=True)
-    output = MANUSCRIPT / "Ecological_Modelling_manuscript.docx"
+    output = MANUSCRIPT / "Journal_of_Biogeography_manuscript.docx"
     document.save(output)
     return output
 
@@ -324,7 +324,7 @@ def build_supplement() -> Path:
     document = Document()
     configure_document(document)
     add_markdown(document, MANUSCRIPT / "supplement.md")
-    output = MANUSCRIPT / "Ecological_Modelling_supplement.docx"
+    output = MANUSCRIPT / "Journal_of_Biogeography_supplement.docx"
     document.save(output)
     return output
 
@@ -342,7 +342,7 @@ def build_highlights() -> Path:
             paragraph = document.add_paragraph(style="List Bullet")
             paragraph.paragraph_format.space_after = Pt(10)
             paragraph.add_run(line.strip())
-    output = MANUSCRIPT / "Ecological_Modelling_highlights.docx"
+    output = MANUSCRIPT / "Journal_of_Biogeography_highlights.docx"
     document.save(output)
     return output
 
@@ -361,7 +361,7 @@ def build_cover_letter() -> Path:
         add_inline_markdown(paragraph, line)
         if index == 0:
             paragraph.paragraph_format.space_after = Pt(18)
-    output = MANUSCRIPT / "Ecological_Modelling_cover_letter.docx"
+    output = MANUSCRIPT / "Journal_of_Biogeography_cover_letter.docx"
     document.save(output)
     return output
 

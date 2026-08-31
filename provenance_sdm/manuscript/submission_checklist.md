@@ -1,4 +1,4 @@
-# Ecological Modelling submission checklist
+# Journal of Biogeography submission checklist
 
 ## Complete in this package
 
@@ -7,7 +7,7 @@
 - Seven keywords.
 - Numbered sections and editable tables.
 - Six separate, publication-resolution figure files with captions.
-- Five highlights, each below the journal's 85-character limit.
+- Five concise highlights for the submission system, if requested.
 - Supplementary methods and result tables.
 - CRediT author statement.
 - Funding, competing-interest, ethics, data, and AI-use declarations.
@@ -26,14 +26,14 @@
 - Review the AI-use declaration and update the named tool or scope if the final manuscript is changed with another system.
 - Run the journal's final reference and metadata checks in the submission portal.
 - Suggest independent reviewers only after checking conflicts of interest and current contact details.
-- Do not select paid open access unless desired; the journal's subscription route has no publication fee.
+- Select the subscription-only publishing route if the manuscript is accepted; do not select paid open access.
 
 ## Submission files
 
-- `Ecological_Modelling_manuscript.docx`
-- `Ecological_Modelling_supplement.docx`
-- `Ecological_Modelling_highlights.docx`
-- `Ecological_Modelling_cover_letter.docx`
+- `Journal_of_Biogeography_manuscript.docx`
+- `Journal_of_Biogeography_supplement.docx`
+- `Journal_of_Biogeography_highlights.docx`
+- `Journal_of_Biogeography_cover_letter.docx`
 - `figures/simulation_workflow.png`
 - `figures/paired_truth_contrasts.png`
 - `figures/source_composition_mechanism.png`
