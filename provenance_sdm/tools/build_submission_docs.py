@@ -351,6 +351,39 @@ def build_blinded_main() -> Path:
     return output
 
 
+def build_jbiog_title_page() -> Path:
+    """Create the identified title page kept separate from the blinded manuscript."""
+    document = Document()
+    configure_document(document)
+
+    title = document.add_paragraph(style="Title")
+    title.paragraph_format.space_before = Pt(54)
+    title.paragraph_format.space_after = Pt(26)
+    title.add_run("Observed provenance composition is not sampling effort in presence-only species distribution models")
+
+    def add_field(label: str, value: str, *, before: float = 0) -> None:
+        paragraph = document.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.space_before = Pt(before)
+        paragraph.paragraph_format.space_after = Pt(8)
+        label_run = paragraph.add_run(f"{label}: ")
+        label_run.bold = True
+        paragraph.add_run(value)
+
+    add_field("Authors", "Arzaan Ul Mairaj")
+    add_field("Affiliation", "Independent researcher, Birmingham, B1 1BA, United Kingdom")
+    add_field(
+        "Correspondence",
+        "Arzaan Ul Mairaj, Independent researcher, Birmingham, B1 1BA, United Kingdom; arzaaan789@gmail.com",
+    )
+    add_field("Acknowledgements", "None.", before=10)
+    add_field("Conflict of interest statement", "The author declares no competing interests.")
+
+    output = MANUSCRIPT / "Journal_of_Biogeography_title_page.docx"
+    document.save(output)
+    return output
+
+
 def build_supplement() -> Path:
     document = Document()
     configure_document(document)
