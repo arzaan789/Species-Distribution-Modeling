@@ -320,6 +320,37 @@ def build_main() -> Path:
     return output
 
 
+def build_blinded_main() -> Path:
+    """Create the anonymous review file required for initial JBiog submission."""
+    document = Document()
+    configure_document(document)
+    title = "Observed provenance composition is not sampling effort in presence-only species distribution models"
+    document.add_paragraph(title, style="Title")
+
+    lines = (MANUSCRIPT / "manuscript.md").read_text(encoding="utf-8").splitlines()
+    abstract_start = lines.index("## Abstract")
+    declarations_start = lines.index("## Declarations")
+    references_start = lines.index("## References")
+    blinded = lines[abstract_start:declarations_start] + lines[references_start:]
+    blinded = [
+        (
+            "Code, configuration, audit manifests, manuscript tables, and figure-generation workflows "
+            "are archived in a public repository and will be cited after peer review."
+            if line.startswith("The GBIF occurrence archive is available at")
+            else line.removeprefix("The ")
+            if line.startswith("The environmental grid covered Great Britain")
+            else "Anonymized, 2026. Reproducibility materials for this study. Zenodo."
+            if line.startswith("Ul Mairaj, A., 2026.")
+            else line
+        )
+        for line in blinded
+    ]
+    add_markdown(document, lines=blinded, include_figures=True)
+    output = MANUSCRIPT / "Journal_of_Biogeography_blinded_manuscript.docx"
+    document.save(output)
+    return output
+
+
 def build_supplement() -> Path:
     document = Document()
     configure_document(document)
@@ -367,7 +398,13 @@ def build_cover_letter() -> Path:
 
 
 def main() -> None:
-    for path in (build_main(), build_supplement(), build_highlights(), build_cover_letter()):
+    for path in (
+        build_main(),
+        build_blinded_main(),
+        build_supplement(),
+        build_highlights(),
+        build_cover_letter(),
+    ):
         print(path)
 
 
