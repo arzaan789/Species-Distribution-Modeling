@@ -195,7 +195,7 @@ Ryckewaert, M., Marcos, D., Botella, C., Servajean, M., Bonnet, P., Joly, A., 20
 
 Sica, Y.V., Hochachka, W.M., Stevenson, R.D., Ingenloff, K., Zermoglio, P.F., Wieczorek, J., Gan, Y.M., Schigel, D., Kachian, Z.R., Baskauf, S., Brenton, P., Kazem, A.J.N., Jetz, W., Guralnick, R., 2026. Enabling ecological survey data integration with the Humboldt Extension to Darwin Core. Ecography 2026, e08223. https://doi.org/10.1002/ecog.08223.
 
-Ul Mairaj, A., 2026. Observed provenance composition is not sampling effort in presence-only species distribution models: code and reproducibility materials, version 1.0.0. Zenodo. https://doi.org/10.5281/zenodo.22164506.
+Ul Mairaj, A., 2026. Observed provenance composition is not sampling effort in presence-only species distribution models: Journal of Biogeography submission materials, version 1.0.1. Zenodo. https://doi.org/10.5281/zenodo.22212572.
 
 ## Figure captions
 

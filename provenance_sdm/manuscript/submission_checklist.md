@@ -20,7 +20,7 @@
 - Read the manuscript closely and confirm that every interpretation reflects the author's intended claim.
 - Confirmed affiliation: "Independent researcher, Birmingham, B1 1BA, United Kingdom."
 - Add the corresponding author's postal address and telephone number in the submission system if requested.
-- Publish the prepared Zenodo record and verify that https://doi.org/10.5281/zenodo.22164506 resolves before submitting the manuscript.
+- Publish the prepared Zenodo record and verify that https://doi.org/10.5281/zenodo.22212572 resolves before submitting the manuscript.
 - Confirm whether the processed predictor grid may be redistributed. If not, keep the source and preprocessing manifest and state the access restriction precisely.
 - Export each figure in the journal's preferred final format if the submission system does not accept PNG. Keep labels legible at final print size.
 - Review the AI-use declaration and update the named tool or scope if the final manuscript is changed with another system.

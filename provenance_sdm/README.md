@@ -1,6 +1,6 @@
 # Provenance-aware SDM experiment
 
-Versioned archive: https://doi.org/10.5281/zenodo.22164506
+Versioned Journal of Biogeography submission archive: https://doi.org/10.5281/zenodo.22212572
 
 This package implements the simulation-led evaluation described in the paper
 design. Its core compares uniform, conventional target-group,

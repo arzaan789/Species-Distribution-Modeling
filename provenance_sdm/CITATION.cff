@@ -1,12 +1,12 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the versioned Zenodo archive."
-title: "Observed provenance composition is not sampling effort in presence-only species distribution models: code and reproducibility materials"
+title: "Observed provenance composition is not sampling effort in presence-only species distribution models: Journal of Biogeography submission materials"
 type: software
-version: 1.0.0
-date-released: 2026-08-29
+version: 1.0.1
+date-released: 2026-08-31
 authors:
   - family-names: "Ul Mairaj"
     given-names: "Arzaan"
-doi: 10.5281/zenodo.22164506
+doi: 10.5281/zenodo.22212572
 repository-code: "https://github.com/arzaan789/Species-Distribution-Modeling/tree/paper/ecomodelling-provenance-backgrounds"
-url: "https://doi.org/10.5281/zenodo.22164506"
+url: "https://doi.org/10.5281/zenodo.22212572"

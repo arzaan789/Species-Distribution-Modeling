@@ -14,7 +14,7 @@ The study combines 14,400 paired virtual-species model fits, a known-process dec
 
 The work fits the *Journal of Biogeography* because it tests how observation processes affect geographic inference from biodiversity records. It uses virtual species to establish known ecological truth, isolates the role of background selection, and then demonstrates the practical consequence using a multi-source GBIF archive for four British mammals. The result is a clear inference constraint: provenance can expose heterogeneous data-generating processes, but observed source shares cannot be interpreted as survey allocation without metadata on visits, protocols, or detection.
 
-This manuscript is original, is not under consideration elsewhere, and has one author. No competing interests exist. The GBIF archive has a persistent DOI, and the code, configuration, audit manifests, figures, and tables are available on a dedicated public repository branch and in a versioned Zenodo archive at https://doi.org/10.5281/zenodo.22164506.
+This manuscript is original, is not under consideration elsewhere, and has one author. No competing interests exist. The GBIF archive has a persistent DOI, and the code, configuration, audit manifests, figures, and tables are available on a dedicated public repository branch and in a versioned Zenodo archive at https://doi.org/10.5281/zenodo.22212572.
 
 Thank you for considering the manuscript.
 
